@@ -2,6 +2,7 @@ import numpy as np
 import math
 from driver import Action, State
 from collections import namedtuple
+from path import strait_path
 
 PointSet = namedtuple('PointSet', ['x', 'y'])
 
@@ -165,7 +166,7 @@ class CarModel():
         alphar = np.arctan2(Uyr, Uxr)
         alphaf = np.arctan2(Uyf, Uxf) - action.delta
 
-        Vr = Uxr
+        Vr = Uxr + self.d/2*state.r*np.array([-1, 1])
         Vf = Uxf*np.cos(action.delta) + Uyf*np.sin(action.delta)
         sigmar = np.nan_to_num(np.divide(self.Re*state.wr - Vr, Vr))
         sigmaf = np.nan_to_num(np.divide(self.Re*state.wf - Vf, Vf))
@@ -242,7 +243,34 @@ class CarModel():
                 s=s,
                 delta_psi=delta_psi,
                 e_max=state.e_max,
-                road_orientation=road_orientation
+                road_orientation=road_orientation,
+                data={
+                    "u_xr": Uxr,
+                    "u_yr": Uyr,
+                    "u_xf": Uxf,
+                    "u_yf": Uyf,
+                    "alphar": alphar,
+                    "alphaf": alphaf,
+                    "sigmaf": sigmaf,
+                    "sigmar": sigmar,
+                    "Vf": Vf,
+                    "Vr": Vr,
+                    "f_rl": F_rl,
+                    "f_rr": F_rr,
+                    "f_fr": F_fr,
+                    "f_fl": F_fl,
+                    "Ra": R_a,
+                    "theta_a": theta_a,
+                    "ff": Ff,
+                    "Rb": R_b,
+                    "theta_b": theta_b,
+                    "fr": Fr,
+                    "del": action.delta,
+                    "tr_r": action.tr,
+                    "tr_f": action.tf,
+                    "w_r": wr,
+                    "w_f": wf
+                }
         )
 
         if self.record is not None:
@@ -314,13 +342,9 @@ def car_model_test():
         [24.7139, -0.4294, 0.2707, np.array([72.1132, 73.3479]), np.array([72.0391, 73.2730])]
     ]
 
-    class TestPath():
-        def kappa(self, s=0):
-            return [s]
-
     for action, result, state, run in zip(actions, results, init, range(len(actions))):
 
-        state = model.make_test_state(Ux=state[0], Uy=state[1], r=state[2], path=TestPath(), wf=state[3], wr=state[4])
+        state = model.make_test_state(Ux=state[0], Uy=state[1], r=state[2], path=strait_path(10, interval=1), wf=state[3], wr=state[4])
         output = model(state=state, action=action, time=t, as_state=False)
         for o, r, type in zip(output, result, ['dx', 'dy', 'do']):
             type = "run {t}: {type} = {actual}, should be {correct} is incorrect".format(

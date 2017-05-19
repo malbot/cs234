@@ -18,7 +18,7 @@ class CarAnimation():
         if self.states is not None:
             state = self.states[frame]
             # self.bar.update(frame, exact=self.states[frame].items())
-            self.data_text.set_text("\n".join(["{0} = {1}".format(attr, state[attr]) for attr in ["e", "kappa", 's', "delta_psi", "road_orientation", "wo"]]))
+            self.data_text.set_text("\n".join(["{0} = {1}".format(key, state[key]) for key in sorted(state.keys())]))
         else:
             self.bar.update(frame)
 
@@ -58,10 +58,13 @@ class CarAnimation():
 
         # time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
         # energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
-        self.data_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
-        ani = FuncAnimation(fig=fig, func=self, frames=range(0, len(front_wheels.x),4), interval=interval)
-
-        plt.show()
+        self.data_text = ax.text(1.10, 0.0, '', transform=ax.transAxes)
+        ani = FuncAnimation(fig=fig, func=self, frames=range(0, len(front_wheels.x), 4), interval=interval)
+        
+        try:
+            plt.show()
+        except:
+            pass
 
 if __name__ == "__main__":
     interval = .1

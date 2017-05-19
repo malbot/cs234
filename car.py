@@ -5,6 +5,7 @@ from collections import namedtuple
 
 PointSet = namedtuple('PointSet', ['x', 'y'])
 
+
 class TireModel():
 
     def __init__(self, mu_s, mu_p, cx, cy):

@@ -70,13 +70,16 @@ class Path():
         e = np.sqrt((x_line - x) ** 2 + (y_line - y) ** 2)  * np.sign(np.cross([x_line_front - x_line, y_line_front - y_line], [x - x_line, y - y_line]))
         return e, s, orientation
 
+
 def cospath(length, interval=0.1, y_scale=1, frequency=1):
     return cospath_decay(length=length, interval=interval, y_scale=y_scale, frequency=1, decay_amplitude=0, decay_frequency=0)
+
 
 def cospath_decay(length, interval=0.1, y_scale=1, frequency=1, decay_amplitude=0, decay_frequency=0):
     x = np.array(range(0, int(np.ceil(length / interval)))) * interval
     y = [np.sin(t / x[-1] * frequency * 2 * np.pi * np.exp(decay_frequency*t)) * np.exp(decay_amplitude * t) * y_scale for t in x]
     return Path(x, y)
+
 
 def circle_path(radius, interval=0.1, revolutions=1, decay = 0):
     """
@@ -99,7 +102,7 @@ def circle_path(radius, interval=0.1, revolutions=1, decay = 0):
 
 def strait_path(length, interval=0.1):
     x = np.arange(start=0, stop=length, step=interval)
-    return Path(x=x, y=np.zeros(shape=np.size(x)))
+    return Path(x=x, y=np.random.normal(0, .1, size=np.size(x)))
 
 if __name__ == "__main__":
     path = circle_path(radius=10, interval=1, revolutions=.95, decay=0)

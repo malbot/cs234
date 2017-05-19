@@ -1,8 +1,9 @@
 import numpy as np
 
+
 class State():
 
-    def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=5, road_orientation = 0):
+    def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=5, road_orientation=0, data=None):
         """
         :param Ux:
         :param Uy:
@@ -30,8 +31,8 @@ class State():
         self.e = e
         self.s = s
         self.road_orientation = road_orientation
-
         self.e_max = e_max
+        self.data = data if data is not None else {}
 
     def kappa(self, s=None):
         if s is None:
@@ -75,6 +76,7 @@ class State():
             self.s
         )
 
+
 class Action():
 
     def __init__(self, delta, tr, tf):
@@ -84,6 +86,7 @@ class Action():
 
     def __call__(self):
         return self.delta, self.tr, self.tf
+
 
 class Driver():
 
