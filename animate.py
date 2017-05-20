@@ -1,9 +1,7 @@
 import numpy as np
-from numpy import sin, cos
+from numpy import cos
 import matplotlib.pyplot as plt
-import scipy.integrate as integrate
 from matplotlib.animation import FuncAnimation
-from time import time
 from path import Path
 from gps import PointSet
 from bar import Progbar
@@ -58,8 +56,8 @@ class CarAnimation():
 
         # time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
         # energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
-        self.data_text = ax.text(1.10, 0.0, '', transform=ax.transAxes)
-        ani = FuncAnimation(fig=fig, func=self, frames=range(0, len(front_wheels.x), 4), interval=interval)
+        self.data_text = ax.text(1.01, 0.0, '', transform=ax.transAxes)
+        ani = FuncAnimation(fig=fig, func=self, frames=range(4000, len(front_wheels.x), 4), interval=interval)
         
         try:
             plt.show()

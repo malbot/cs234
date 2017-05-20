@@ -1,6 +1,6 @@
 import car
 import numpy as np
-from driver import State, Action
+from action import Action
 from matplotlib import pyplot as plt
 from collections import namedtuple
 

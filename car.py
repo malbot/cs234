@@ -1,56 +1,11 @@
 import numpy as np
-import math
-from driver import Action, State
+from state import State
+from action import Action
 from collections import namedtuple
+from tiremodel import TireModel
+from car2 import CarModel
 
 PointSet = namedtuple('PointSet', ['x', 'y'])
-
-
-class TireModel():
-
-    def __init__(self, mu_s, mu_p, cx, cy):
-        """
-        Creates a tire model
-        :param mu_s:
-        :param mu_p:
-        :param cx: N/rad in the x (longitudinal) direction
-        :param cy: N/rad in the y (lateral) direction
-        """
-        self.mu_s = mu_s
-        self.mu_p = mu_p
-        self.cx = cx
-        self.cy = cy
-
-    def __call__(self, Fz, sigma, alpha, as_dict=False):
-        """
-        find the Fx and Fy forces by the wheel
-        :param Fz: downward force
-        :param sigma:
-        :param alpha:
-        :param as_dict: returns a dictionary instead of list
-        :return: the Fx and Fy of the wheel
-        if as_dict==True, returns {'Fx':Fx, 'Fy':Fy}
-        """
-        f = math.sqrt(self.cx ** 2 * (sigma / (1 + sigma)) ** 2 + self.cy**2 * (math.tan(alpha) / (1 + sigma)) ** 2)
-        t = 3*self.mu_p*Fz
-        if f < t:
-            F = f - 1/t * (2-self.mu_s/self.mu_p)*(f**2) + 1/(t**2)*(1-(2*self.mu_s)/(3*self.mu_p))*(f**3)
-        else:
-            F = self.mu_s*Fz
-        if f == 0:
-            Fx = 0
-            Fy = 0
-        else:
-            Fx = self.cx*(sigma/(1+sigma))*F/f
-            Fy = -1*self.cy*(math.tan(alpha)/(1+sigma))*F/f
-
-        if as_dict:
-            return {
-                'Fx': Fx,
-                'Fy': Fy
-            }
-        else:
-            return Fx, Fy
 
 
 class CarModel():
@@ -102,7 +57,6 @@ class CarModel():
             "front": PointSet(x=self.record[1][0], y=self.record[1][1]),
             "rear": PointSet(x=self.record[2][0], y=self.record[2][1])
         }
-
 
     def make_test_state(self, Ux, Uy, r, path=None, x=0, y=0, o=0, delta_psi=0, e=0, s=0, wf=None, wr=None):
         """
@@ -160,7 +114,7 @@ class CarModel():
         alphar = np.arctan2(Uyr, Uxr)
         alphaf = np.arctan2(Uyf, Uxf) - action.delta
 
-        Vr = Uxr
+        Vr = Uxr + self.d/2*state.r*np.array([-1, 1])
         Vf = Uxf*np.cos(action.delta) + Uyf*np.sin(action.delta)
         sigmar = np.nan_to_num(np.divide(self.Re*state.wr - Vr, Vr))
         sigmaf = np.nan_to_num(np.divide(self.Re*state.wf - Vf, Vf))
@@ -174,14 +128,14 @@ class CarModel():
         theta_a = np.arctan(self.d/(self.a*2))
         Ff = np.array([
             -F_fl['Fx']*np.sin(theta_a - action.delta) + F_fl['Fy']*np.cos(theta_a - action.delta),
-            F_fr['Fx'] * np.sin(theta_a + action.delta) + F_fr['Fy']*np.cos(theta_a + action.delta)
+            F_fr['Fx']*np.sin(theta_a + action.delta) + F_fr['Fy']*np.cos(theta_a + action.delta)
         ])
 
         R_b = np.sqrt(self.b**2 + self.d**2/4)
         theta_b = np.arctan(self.d/(2*self.b))
         Fr = np.array([
             -F_rl['Fx']*np.sin(theta_b) - F_rl['Fy']*np.cos(theta_b),
-            F_rr['Fx'] * np.sin(theta_b) - F_rr['Fy'] * np.cos(theta_b)
+            F_rr['Fx']*np.sin(theta_b) - F_rr['Fy']*np.cos(theta_b)
         ])
 
         drdt = (np.sum(Ff*R_a) + np.sum(Fr*R_b))/self.Iz
@@ -233,7 +187,34 @@ class CarModel():
                 e=e,
                 s=s,
                 delta_psi=delta_psi,
-                e_max=state.e_max)
+                e_max=state.e_max,
+                data={
+                    "u_xr": Uxr,
+                    "u_yr": Uyr,
+                    "u_xf": Uxf,
+                    "u_yf": Uyf,
+                    "alphar": alphar,
+                    "alphaf": alphaf,
+                    "sigmaf": sigmaf,
+                    "sigmar": sigmar,
+                    "Vf": Vf,
+                    "Vr": Vr,
+                    "f_rl": F_rl,
+                    "f_rr": F_rr,
+                    "f_fr": F_fr,
+                    "f_fl": F_fl,
+                    "Ra": R_a,
+                    "theta_a": theta_a,
+                    "ff": Ff,
+                    "Rb": R_b,
+                    "theta_b": theta_b,
+                    "fr": Fr,
+                    "del": action.delta,
+                    "tr_r": action.tr,
+                    "tr_f": action.tf,
+                    "w_r": wr,
+                    "w_f": wf
+                })
 
         if self.record is not None:
             for points, point in zip(self.record, [[state.wx, state.wy], [state.x_front(self), state.y_front(self)], [state.x_back(self), state.y_back(self)]]):
@@ -245,48 +226,6 @@ class CarModel():
 
         else:
             return dx, dy, do
-
-
-
-def tyre_model_test():
-    Cx = 200000
-    Cy = 100000
-    Mu_p = 1.1
-    Mu_s = 0.9
-    m = 1650 # mass of the gar
-    mdf = .57 # mass distribution of the front
-    g = 9.81 # gravity
-    fz_front = m * mdf / 2 * g
-
-    model = TireModel(mu_s=Mu_s, mu_p=Mu_p, cx=Cx, cy=Cy)
-    inputs = [
-        [0.1421e-15, 0],
-        [-0.1421e-15, 0],
-        [8.0036e-04, -0.0458],
-        [6.2236e-04, -0.0464],
-        [4.0686e-04, -0.0428]
-    ]
-    results = [
-        [0.284e-10, 0],
-        [-0.2842e-10, 0],
-        [0.1097e3, 3.1376e3],
-        [0.0848e3, 3.1649e3],
-        [0.0572e3, 3.0125e3]
-    ]
-    for input, result in zip(inputs, results):
-        output = model(fz_front, input[0], input[1])
-        for o, r, type in zip(output, result, ['fx', 'fy']):
-            type = "{type} = {actual}, should be {correct} is incorrect for sigma {sigma} and alpha {alpha}".format(
-                type=type,
-                sigma=input[0],
-                alpha=input[1],
-                actual=o,
-                correct=r
-            )
-            if r == 0:
-                assert o == 0, type
-            else:
-                assert abs(o - r)/r < .01, type
 
 
 def car_model_test():
@@ -326,6 +265,5 @@ def car_model_test():
                 assert abs(o - r)/r < .01, type
 
 if __name__ == "__main__":
-    tyre_model_test()
     car_model_test()
 
