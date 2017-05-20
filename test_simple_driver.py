@@ -1,5 +1,4 @@
 import numpy as np
-from driver import Driver, State, Action
 from path import Path, cospath, cospath_decay, circle_path, strait_path
 from car2 import CarModel
 from matplotlib import pyplot as plt

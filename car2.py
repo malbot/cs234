@@ -1,60 +1,18 @@
 import numpy as np
-import math
-from driver import Action, State
+from state import State
+from action import Action
 from collections import namedtuple
+from path import strait_path
+from tiremodel import TireModel
 
 PointSet = namedtuple('PointSet', ['x', 'y'])
 
-class TireModel():
-
-    def __init__(self, mu_s, mu_p, cx, cy):
-        """
-        Creates a tire model
-        :param mu_s:
-        :param mu_p:
-        :param cx: N/rad in the x (longitudinal) direction
-        :param cy: N/rad in the y (lateral) direction
-        """
-        self.mu_s = mu_s
-        self.mu_p = mu_p
-        self.cx = cx
-        self.cy = cy
-
-    def __call__(self, Fz, sigma, alpha, as_dict=False):
-        """
-        find the Fx and Fy forces by the wheel
-        :param Fz: downward force
-        :param sigma:
-        :param alpha:
-        :param as_dict: returns a dictionary instead of list
-        :return: the Fx and Fy of the wheel
-        if as_dict==True, returns {'Fx':Fx, 'Fy':Fy}
-        """
-        f = math.sqrt(self.cx ** 2 * (sigma / (1 + sigma)) ** 2 + self.cy**2 * (math.tan(alpha) / (1 + sigma)) ** 2)
-        t = 3*self.mu_p*Fz
-        if f < t:
-            F = f - 1/t * (2-self.mu_s/self.mu_p)*(f**2) + 1/(t**2)*(1-(2*self.mu_s)/(3*self.mu_p))*(f**3)
-        else:
-            F = self.mu_s*Fz
-        if f == 0:
-            Fx = 0
-            Fy = 0
-        else:
-            Fx = self.cx*(sigma/(1+sigma))*F/f
-            Fy = -1*self.cy*(math.tan(alpha)/(1+sigma))*F/f
-
-        if as_dict:
-            return {
-                'Fx': Fx,
-                'Fy': Fy
-            }
-        else:
-            return Fx, Fy
-
-
 class CarModel():
+    """
+    vehicle model that calculates delta_psi, e, s directly from its position and the location of the path
+    """
 
-    def __init__(self, mass=1650, tyre_model=TireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re = 0.34, Jw=1.2, make_record = True):
+    def __init__(self, mass=1650, tyre_model=TireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re=0.34, Jw=1.2, make_record=True):
         """
         Initializes the car model
         :param mass: mass of car
@@ -74,13 +32,13 @@ class CarModel():
         :param Jw:
         """
         self.tyre_model = {
-            "front": tyre_model(mu_s = muf_s, mu_p=muf_p, cx=cx, cy=cy),
+            "front": tyre_model(mu_s=muf_s, mu_p=muf_p, cx=cx, cy=cy),
             "rear": tyre_model(mu_s=mur_s, mu_p=mur_p, cx=cx, cy=cy)
         }
         self.cx = cx
         self.cy = cy
-        self.fz_front = mass*mdf*g
-        self.fz_rear = mass*(1-mdf)*g
+        self.fz_front = mass*mdf*g/2  # fz on each front wheel
+        self.fz_rear = mass*(1-mdf)*g/2 # fz on each rear wheel
         self.mdf = mdf
         self.m = mass
         self.a = length*(1-mdf)
@@ -101,7 +59,6 @@ class CarModel():
             "front": PointSet(x=self.record[1][0], y=self.record[1][1]),
             "rear": PointSet(x=self.record[2][0], y=self.record[2][1])
         }
-
 
     def make_test_state(self, Ux, Uy, r, path=None, x=0, y=0, o=0, delta_psi=0, e=0, s=0, wf=None, wr=None):
         """
@@ -170,10 +127,10 @@ class CarModel():
         sigmar = np.nan_to_num(np.divide(self.Re*state.wr - Vr, Vr))
         sigmaf = np.nan_to_num(np.divide(self.Re*state.wf - Vf, Vf))
 
-        F_rl = self.tyre_model["rear"](Fz=self.fz_rear/2, alpha=alphar[0], sigma=sigmar[0], as_dict=True)
-        F_rr = self.tyre_model["rear"](Fz=self.fz_rear/2, alpha=alphar[1], sigma=sigmar[1], as_dict=True)
-        F_fl = self.tyre_model["front"](Fz=self.fz_front/2, alpha=alphaf[0], sigma=sigmaf[0], as_dict=True)
-        F_fr = self.tyre_model["front"](Fz=self.fz_front/2, alpha=alphaf[1], sigma=sigmaf[1], as_dict=True)
+        F_rl = self.tyre_model["rear"](Fz=self.fz_rear, alpha=alphar[0], sigma=sigmar[0], as_dict=True)
+        F_rr = self.tyre_model["rear"](Fz=self.fz_rear, alpha=alphar[1], sigma=sigmar[1], as_dict=True)
+        F_fl = self.tyre_model["front"](Fz=self.fz_front, alpha=alphaf[0], sigma=sigmaf[0], as_dict=True)
+        F_fr = self.tyre_model["front"](Fz=self.fz_front, alpha=alphaf[1], sigma=sigmaf[1], as_dict=True)
 
         R_a = np.sqrt(self.a**2 + self.d**2/4)
         theta_a = np.arctan(self.d/(self.a*2))
@@ -202,11 +159,11 @@ class CarModel():
                 )/self.m + state.r*state.Uy
 
         dwrdt = (action.tr - self.Re * np.array([F_rl['Fx'], F_rr['Fx']]))/self.Jw
-        dwfdt = (action.tf - self.Re * np.array([F_fl['Fx'], F_fr['Fx']])) / self.Jw
+        dwfdt = (action.tf - self.Re * np.array([F_fl['Fx'], F_fr['Fx']]))/self.Jw
 
-        dx = (state.Ux * 2 + time * dUxdt) / 2 * time
-        dy = (state.Uy * 2 + time * dUydt) / 2 * time
-        do = (state.r * 2 + time * drdt) / 2 * time
+        dx = state.Ux * time
+        dy = state.Uy * time
+        do = state.r * time
 
         Ux = time*dUxdt + state.Ux
         Uy = time*dUydt + state.Uy
@@ -219,14 +176,11 @@ class CarModel():
             Wo -= 2*np.pi
         elif Wo < -1*np.pi:
             Wo += 2*np.pi
-        Wx = float(state.wx + (dx * np.cos(Wo) + dy * np.sin(Wo)))
-        Wy = float(state.wy + (dx * np.sin(Wo) + dy * np.cos(Wo)))
+        Wx = float(state.wx + (dx * np.cos(state.wo) + dy * np.sin(state.wo)))
+        Wy = float(state.wy + (dx * np.sin(state.wo) + dy * np.cos(state.wo)))
 
-        # dsdt = state.Ux * np.cos(state.delta_psi) - state.Uy * np.sin(state.delta_psi)
-        # s = state.s + dsdt*time
         e, s, road_orientation = state.path.interpolate(Wx, Wy, old_s=None)
         delta_psi = Wo - road_orientation
-
 
         state = State(
                 Ux=Ux,
@@ -242,7 +196,33 @@ class CarModel():
                 s=s,
                 delta_psi=delta_psi,
                 e_max=state.e_max,
-                road_orientation=road_orientation
+                data={
+                    "u_xr": Uxr,
+                    "u_yr": Uyr,
+                    "u_xf": Uxf,
+                    "u_yf": Uyf,
+                    "alphar": alphar,
+                    "alphaf": alphaf,
+                    "sigmaf": sigmaf,
+                    "sigmar": sigmar,
+                    "Vf": Vf,
+                    "Vr": Vr,
+                    "f_rl": F_rl,
+                    "f_rr": F_rr,
+                    "f_fr": F_fr,
+                    "f_fl": F_fl,
+                    "Ra": R_a,
+                    "theta_a": theta_a,
+                    "ff": Ff,
+                    "Rb": R_b,
+                    "theta_b": theta_b,
+                    "fr": Fr,
+                    "del": action.delta,
+                    "tr_r": action.tr,
+                    "tr_f": action.tf,
+                    "w_r": wr,
+                    "w_f": wf
+                }
         )
 
         if self.record is not None:
@@ -255,47 +235,6 @@ class CarModel():
 
         else:
             return dx, dy, do
-
-
-def tyre_model_test():
-    Cx = 200000
-    Cy = 100000
-    Mu_p = 1.1
-    Mu_s = 0.9
-    m = 1650 # mass of the gar
-    mdf = .57 # mass distribution of the front
-    g = 9.81 # gravity
-    fz_front = m * mdf / 2 * g
-
-    model = TireModel(mu_s=Mu_s, mu_p=Mu_p, cx=Cx, cy=Cy)
-    inputs = [
-        [0.1421e-15, 0],
-        [-0.1421e-15, 0],
-        [8.0036e-04, -0.0458],
-        [6.2236e-04, -0.0464],
-        [4.0686e-04, -0.0428]
-    ]
-    results = [
-        [0.284e-10, 0],
-        [-0.2842e-10, 0],
-        [0.1097e3, 3.1376e3],
-        [0.0848e3, 3.1649e3],
-        [0.0572e3, 3.0125e3]
-    ]
-    for input, result in zip(inputs, results):
-        output = model(fz_front, input[0], input[1])
-        for o, r, type in zip(output, result, ['fx', 'fy']):
-            type = "{type} = {actual}, should be {correct} is incorrect for sigma {sigma} and alpha {alpha}".format(
-                type=type,
-                sigma=input[0],
-                alpha=input[1],
-                actual=o,
-                correct=r
-            )
-            if r == 0:
-                assert o == 0, type
-            else:
-                assert abs(o - r)/r < .03, type
 
 
 def car_model_test():
@@ -314,13 +253,9 @@ def car_model_test():
         [24.7139, -0.4294, 0.2707, np.array([72.1132, 73.3479]), np.array([72.0391, 73.2730])]
     ]
 
-    class TestPath():
-        def kappa(self, s=0):
-            return [s]
-
     for action, result, state, run in zip(actions, results, init, range(len(actions))):
 
-        state = model.make_test_state(Ux=state[0], Uy=state[1], r=state[2], path=TestPath(), wf=state[3], wr=state[4])
+        state = model.make_test_state(Ux=state[0], Uy=state[1], r=state[2], path=strait_path(10, interval=1), wf=state[3], wr=state[4])
         output = model(state=state, action=action, time=t, as_state=False)
         for o, r, type in zip(output, result, ['dx', 'dy', 'do']):
             type = "run {t}: {type} = {actual}, should be {correct} is incorrect".format(
@@ -335,6 +270,5 @@ def car_model_test():
                 assert abs(o - r)/r < .01, type
 
 if __name__ == "__main__":
-    tyre_model_test()
     car_model_test()
 

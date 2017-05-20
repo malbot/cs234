@@ -1,5 +1,7 @@
 import numpy as np
-from driver import Driver, State, Action
+from driver import Driver
+from state import State
+from action import Action
 from path import Path, cospath
 from car import CarModel
 from gps import GPS
