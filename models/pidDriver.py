@@ -1,10 +1,12 @@
 import numpy as np
-from driver import Driver
-from state import State
+
+from models.car import CarModel
+from models.path import cospath
 from action import Action
-from path import Path, cospath
-from car import CarModel
-from gps import GPS
+from driver import Driver
+from models.gps import GPS
+from state import State
+
 
 class pidDriver(Driver):
     def __init__(self, V, kp, x_la, car, lookahead=0):

@@ -1,10 +1,11 @@
 import numpy as np
-from path import Path, circle_path
-from car2 import CarModel
 from matplotlib import pyplot as plt
-from pidDriver import pidDriver
-from animate import CarAnimation
+
 from bar import Progbar
+from models.animate import CarAnimation
+from models.car2 import CarModel
+from models.path import Path
+from models.pidDriver import pidDriver
 
 with open("spinout_road.csv", 'r') as f:
     x, y = tuple(f)

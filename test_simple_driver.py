@@ -1,10 +1,11 @@
 import numpy as np
-from path import Path, cospath, cospath_decay, circle_path, strait_path
-from car2 import CarModel
 from matplotlib import pyplot as plt
-from pidDriver import pidDriver
-from animate import CarAnimation
+from models.path import circle_path
+from models.pidDriver import pidDriver
+
 from bar import Progbar
+from models.animate import CarAnimation
+from models.car2 import CarModel
 
 t_step = .001
 # path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
@@ -18,7 +19,7 @@ data = []
 while (not state.is_terminal()):
     data.append({
         **{
-            attr: getattr(state, attr) for attr in ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx','wy', 'wo', 's', "road_orientation"]
+            attr: getattr(state, attr) for attr in ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx','wy', 'wo', 's']
         },
         "kappa": state.kappa()
     })
