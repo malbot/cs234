@@ -1,5 +1,8 @@
 import numpy as np
 
+from models.path import cospath_decay
+
+
 class State():
 
     def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=5, data=None):
@@ -31,13 +34,33 @@ class State():
         self.e_max = e_max
         self.data = data if data is not None else {}
 
+    @staticmethod
+    def size():
+        return 13  # 12 variables, with wf and wr size 2, excluding kappa
+
+    def as_array(self, kappa_length, kappa_step_size=1):
+        """
+        returns an array representation of the state, including kappa
+        :param kappa_length: the number of kappa values to include (in front of current location)
+        :param kappa_step_size: the interval distance between kappa value given
+        :return: 
+        """
+        return np.asarray(
+            [
+                getattr(self, attr) for attr in ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's']
+            ]
+            + self.wf.tolist()
+            + self.wr.tolist()
+            + self.kappa(s=[self.s + i*kappa_step_size for i in range(kappa_length)]).tolist()
+        )
+
     def kappa(self, s=None):
         if s is None:
             s = self.s
-        return self.path.kappa(s)
+        return self.path.kappa(s)[0]
 
     def is_terminal(self):
-        return self.reward() < 0 and self.remainder() > 0
+        return self.reward() < 0 or self.remainder() <= 0
 
     def reward(self):
         if self.path.length() < self.s:
@@ -72,3 +95,8 @@ class State():
             self.e,
             self.s
         )
+
+if __name__ == "__main__":
+    path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
+    state = State(Ux=1, Uy=6, r=9, wf=np.asarray([1, 2]), wr=np.asarray([3, 4]), path=path, wx=4, wy=5, wo=7, delta_psi=9, e=1, s=2)
+    state.as_array(kappa_length=5)

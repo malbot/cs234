@@ -1,25 +1,27 @@
 import numpy as np
-from driver import Driver
-from state import State
-from action import Action
-from path import Path, cospath
-from car import CarModel
-from gps import GPS
 
-class pidDriver(Driver):
+from drivers.action import Action
+from drivers.abstract_driver import AbstractDriver
+from drivers.state import State
+from models.car import CarModel
+from models.gps import GPS
+from models.path import cospath
+
+
+class pidDriver(AbstractDriver):
     def __init__(self, V, kp, x_la, car, lookahead=0):
-        super(Driver, self).__init__()
+        super(AbstractDriver, self).__init__()
         self.V = V
         self.kp = kp
         self.x_la = x_la
         self.car = car
         self.lookahead = lookahead
 
-    def get_policy(self, state_batch):
+    def get_action(self, state_batch):
         actions = []
         for state in state_batch:
-            kappa = state.kappa(state.s)[0]
-            delta_fb = -self.kp *(state.e + self.x_la*state.delta_psi)
+            kappa = state.kappa(state.s)
+            delta_fb = -self.kp * (state.e + self.x_la*state.delta_psi)
             K = self.car.m * self.car.mdf / self.car.cy - self.car.m*(1-self.car.mdf)/self.car.cy
             beta = (self.car.b - (self.car.a*self.car.m*state.Ux**2)/(self.car.cy*self.car.l))*kappa
             delta_ff = self.car.l*kappa + K*state.Ux**2*kappa - self.kp*self.x_la*beta
@@ -81,6 +83,6 @@ if __name__ == "__main__":
         )
     ]
 
-    actions = driver.get_policy(states)
+    actions = driver.get_action(states)
     for action, delta in zip(actions, [0.0084, 0.0264]):
         assert abs(action.delta - delta)/action.delta < .03

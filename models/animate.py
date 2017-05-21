@@ -1,10 +1,12 @@
-import numpy as np
-from numpy import cos
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.animation import FuncAnimation
-from path import Path
-from gps import PointSet
+from numpy import cos
+from models.path import Path
+
 from bar import Progbar
+from models.gps import PointSet
+
 
 class CarAnimation():
 
