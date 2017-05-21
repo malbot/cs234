@@ -3,7 +3,7 @@ from collections import namedtuple
 import numpy as np
 from matplotlib import pyplot as plt
 
-from action import Action
+from drivers.action import Action
 from models import car
 
 PointSet = namedtuple('PointSet', ['x', 'y'])

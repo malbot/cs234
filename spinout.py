@@ -2,10 +2,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from bar import Progbar
+from drivers.pidDriver import pidDriver
 from models.animate import CarAnimation
 from models.car2 import CarModel
 from models.path import Path
-from models.pidDriver import pidDriver
 
 with open("spinout_road.csv", 'r') as f:
     x, y = tuple(f)
@@ -44,7 +44,7 @@ while (not state.is_terminal()):
         "r_w": 0 if t == 0 else abs(old_state.wo - state.wo)/t_step
     })
     t += 1
-    action = driver.get_policy([state])[0]
+    action = driver.get_action([state])[0]
     old_state = state
     state, dx, dy, do = model(state=state, action=action, time=t_step)
     bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux)])

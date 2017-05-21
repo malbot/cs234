@@ -2,9 +2,9 @@ from collections import namedtuple
 
 import numpy as np
 
-from action import Action
+from drivers.action import Action
+from drivers.state import State
 from models.tiremodel import TireModel
-from state import State
 
 PointSet = namedtuple('PointSet', ['x', 'y'])
 
@@ -90,7 +90,7 @@ class CarModel():
         :param time: time step
         :param torque_f: torque on the front wheels
         :param torque_r: torque on the rear wheels
-        :param as_state: returns output as dictionary
+        :param as_state: returns output as state object
         :return: the new state
         """
         Uxr = np.array([

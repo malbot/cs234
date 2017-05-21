@@ -1,11 +1,11 @@
 from collections import namedtuple
 
 import numpy as np
-from models.path import strait_path
 
-from action import Action
+from drivers.action import Action
+from drivers.state import State
+from models.path import strait_path
 from models.tiremodel import TireModel
-from state import State
 
 PointSet = namedtuple('PointSet', ['x', 'y'])
 

@@ -1,7 +1,7 @@
 
-class Driver():
+class AbstractDriver():
 
-    def get_policy(self, state_batch):
+    def get_action(self, state_batch):
         """
         gets an action for each state in batch
         :param state_batch: list of states
@@ -9,13 +9,13 @@ class Driver():
         """
         raise NotImplemented
 
-    def get_value(self, state_batch):
+    def get_state_value(self, state_batch):
         """
         gets the reward for the list of given list of states
         :param state_batch: list of states to evaluate
         :return: list of floats
         """
-        return [state.reward() for state in state_batch]
+        raise NotImplementedError
 
     def train(self, R, states):
         """
