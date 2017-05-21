@@ -31,13 +31,24 @@ class State():
         self.e_max = e_max
         self.data = data if data is not None else {}
 
+    @staticmethod
+    def size():
+        return 13  # 12 variables, with wf and wr size 2, excluding kappa
+
+    def as_array(self):
+        return np.asarray(
+            [
+                getattr(self, attr) for attr in ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's']
+            ] + self.wf.asList() + self.wr.asList()
+        )
+
     def kappa(self, s=None):
         if s is None:
             s = self.s
         return self.path.kappa(s)
 
     def is_terminal(self):
-        return self.reward() < 0 and self.remainder() > 0
+        return self.reward() < 0 or self.remainder() <= 0
 
     def reward(self):
         if self.path.length() < self.s:

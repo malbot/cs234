@@ -55,19 +55,18 @@ class Path():
         point = self.line.interpolate(s)
         return point.x, point.y
 
-    def interpolate(self, x, y, s = None, old_s = None):
+    def interpolate(self, x, y, s=None, old_s=None):
         if s is None:
             s = self.s(x, y, old_s)
         x_line = float(self.x_interp(s))
         y_line = float(self.y_interp(s))
-        # e = np.sqrt((x_line - x)**2 + (y_line - y)**2)
         orientation = np.arctan2(
             self.y_interp(s+self.interp_offset) - self.y_interp(s-self.interp_offset),
             self.x_interp(s+self.interp_offset) - self.x_interp(s-self.interp_offset)
         )
         x_line_front = float(self.x_interp(s + self.interp_offset))
         y_line_front = float(self.y_interp(s + self.interp_offset))
-        e = np.sqrt((x_line - x) ** 2 + (y_line - y) ** 2)  * np.sign(np.cross([x_line_front - x_line, y_line_front - y_line], [x - x_line, y - y_line]))
+        e = np.sqrt((x_line - x) ** 2 + (y_line - y) ** 2)*np.sign(np.cross([x_line_front - x_line, y_line_front - y_line], [x - x_line, y - y_line]))
         return e, s, orientation
 
 
