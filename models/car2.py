@@ -14,7 +14,7 @@ class CarModel():
     vehicle model that calculates delta_psi, e, s directly from its position and the location of the path
     """
 
-    def __init__(self, mass=1650, tyre_model=TireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re=0.34, Jw=1.2, make_record=True):
+    def __init__(self, mass=1650, tyre_model=TireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re=0.34, Jw=1.2, make_record=True, max_t=2000, max_del=np.pi):
         """
         Initializes the car model
         :param mass: mass of car
@@ -50,10 +50,12 @@ class CarModel():
         self.d = width
         self.Re = Re
         self.Jw = Jw
+        self.max_t = max_t
+        self.max_del = max_del
         self.record = [[[],[]],[[],[]],[[],[]]] if make_record else None
 
     def reset_record(self):
-        self.record = []
+        self.record = [[[],[]],[[],[]],[[],[]]]
 
     def get_records(self):
         return {
@@ -102,6 +104,11 @@ class CarModel():
         :param as_state: returns output as dictionary
         :return: the new state
         """
+
+        delta = self.max_del*np.sign(action.delta) if abs(action.delta) > self.max_del else action.delta
+        tf = self.max_t * np.sign(action.tf) if abs(action.tf) > self.max_t else action.tf
+        tr = self.max_t * np.sign(action.tr) if abs(action.tr) > self.max_t else action.tr
+
         Uxr = np.array([
             state.Ux - self.d/2*state.r,
             state.Ux + self.d/2*state.r
@@ -122,10 +129,10 @@ class CarModel():
         ])
 
         alphar = np.arctan2(Uyr, Uxr)
-        alphaf = np.arctan2(Uyf, Uxf) - action.delta
+        alphaf = np.arctan2(Uyf, Uxf) - delta
 
         Vr = Uxr
-        Vf = Uxf*np.cos(action.delta) + Uyf*np.sin(action.delta)
+        Vf = Uxf*np.cos(delta) + Uyf*np.sin(delta)
         sigmar = np.nan_to_num(np.divide(self.Re*state.wr - Vr, Vr))
         sigmaf = np.nan_to_num(np.divide(self.Re*state.wf - Vf, Vf))
 
@@ -137,31 +144,31 @@ class CarModel():
         R_a = np.sqrt(self.a**2 + self.d**2/4)
         theta_a = np.arctan(self.d/(self.a*2))
         Ff = np.array([
-            -F_fl['Fx']*np.sin(theta_a - action.delta) + F_fl['Fy']*np.cos(theta_a - action.delta),
-            F_fr['Fx'] * np.sin(theta_a + action.delta) + F_fr['Fy']*np.cos(theta_a + action.delta)
+            -F_fl['Fx']*np.sin(theta_a - delta) + F_fl['Fy']*np.cos(theta_a - delta),
+            F_fr['Fx'] * np.sin(theta_a + delta) + F_fr['Fy']*np.cos(theta_a + delta)
         ])
 
         R_b = np.sqrt(self.b**2 + self.d**2/4)
         theta_b = np.arctan(self.d/(2*self.b))
         Fr = np.array([
-            -F_rl['Fx']*np.sin(theta_b) - F_rl['Fy']*np.cos(theta_b),
+            -F_rl['Fx'] * np.sin(theta_b) - F_rl['Fy'] * np.cos(theta_b),
             F_rr['Fx'] * np.sin(theta_b) - F_rr['Fy'] * np.cos(theta_b)
         ])
 
         drdt = (np.sum(Ff*R_a) + np.sum(Fr*R_b))/self.Iz
         dUydt = (
                     F_rl['Fy'] + F_rr['Fy']
-                    + (F_fl['Fy'] + F_fr['Fy'])*np.cos(action.delta)
-                    + (F_fl['Fx'] + F_fr['Fx'])*np.sin(action.delta)
+                    + (F_fl['Fy'] + F_fr['Fy'])*np.cos(delta)
+                    + (F_fl['Fx'] + F_fr['Fx'])*np.sin(delta)
                 )/self.m - state.r*state.Ux
         dUxdt = (
                     F_rl['Fx'] + F_rr['Fx']
-                    + (F_fl['Fx'] + F_fr['Fx'])*np.cos(action.delta)
-                    - (F_fl['Fy'] + F_fr['Fy'])*np.sin(action.delta)
+                    + (F_fl['Fx'] + F_fr['Fx'])*np.cos(delta)
+                    - (F_fl['Fy'] + F_fr['Fy'])*np.sin(delta)
                 )/self.m + state.r*state.Uy
 
-        dwrdt = (action.tr - self.Re * np.array([F_rl['Fx'], F_rr['Fx']]))/self.Jw
-        dwfdt = (action.tf - self.Re * np.array([F_fl['Fx'], F_fr['Fx']]))/self.Jw
+        dwrdt = (tr - self.Re * np.array([F_rl['Fx'], F_rr['Fx']]))/self.Jw
+        dwfdt = (tf - self.Re * np.array([F_fl['Fx'], F_fr['Fx']]))/self.Jw
 
         dx = state.Ux * time
         dy = state.Uy * time
@@ -219,9 +226,9 @@ class CarModel():
                     "Rb": R_b,
                     "theta_b": theta_b,
                     "fr": Fr,
-                    "del": action.delta,
-                    "tr_r": action.tr,
-                    "tr_f": action.tf,
+                    "del": delta,
+                    "tr_r": tr,
+                    "tr_f": tf,
                     "w_r": wr,
                     "w_f": wf
                 }

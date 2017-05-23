@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib as contrib
 import random
+from matplotlib import pyplot as plt
 
 from drivers.abstract_driver import AbstractDriver
 from drivers.state import State
@@ -10,6 +11,7 @@ from models.path import circle_path, cospath, cospath_decay
 from models.car2 import CarModel
 from drivers.pidDriver import pidDriver
 from bar import Progbar
+from models.animate import CarAnimation
 
 
 class SimpleDriver(AbstractDriver):
@@ -17,14 +19,15 @@ class SimpleDriver(AbstractDriver):
     critic_hidden_length = 100
     actor_hidden_length = 100
     gamma = .9  # reward discount
-    lr = .01
+    lr = 0.001
     clip_norm = 10
     c_scope = "v"
     a_scope = "pi"
     t_step = 0.01
-    batch_size = 50
+    batch_size = 100
     random_action_stddev = 0.05  # stddev of percentage of noise to add to actions
     initial_velocity = 10
+    alpha = 0 #0.01
 
     def add_placeholders(self):
         """
@@ -61,7 +64,7 @@ class SimpleDriver(AbstractDriver):
                 initializer=contrib.layers.xavier_initializer(),
                 name="b1"
             )
-            v1 = tf.matmul(state, w1) + b1
+            v1 = tf.nn.softmax(tf.matmul(state, w1) + b1)
 
             # layer 2
             w2 = tf.get_variable(
@@ -76,11 +79,11 @@ class SimpleDriver(AbstractDriver):
                 initializer=contrib.layers.xavier_initializer(),
                 name="b2"
             )
-            return tf.matmul(v1, w2) + b2
+            return tf.nn.softmax(tf.matmul(v1, w2) + b2)
 
     def actor(self, scope, reuse=False):
         """
-        adding a 2-layer NN for the actor (action generation from current state)
+        adding a 3-layer NN for the actor (action generation from current state)
         :return: 
         """
         with tf.variable_scope(scope, reuse=reuse):
@@ -99,20 +102,35 @@ class SimpleDriver(AbstractDriver):
             )
             v1 = tf.matmul(self.current_state, w1) + b1
 
-            # layer 2
-            w2 = tf.get_variable(
+            # # layer 2
+            # w2 = tf.get_variable(
+            #     shape=[self.critic_hidden_length, self.critic_hidden_length],
+            #     dtype=tf.float32,
+            #     initializer=contrib.layers.xavier_initializer(),
+            #     name="w2"
+            # )
+            # b2 = tf.get_variable(
+            #     shape=[self.critic_hidden_length],
+            #     dtype=tf.float32,
+            #     initializer=contrib.layers.xavier_initializer(),
+            #     name="b2"
+            # )
+            # v2 = tf.matmul(v1, w2) + b2
+
+            # layer 3
+            w3 = tf.get_variable(
                 shape=[self.critic_hidden_length, Action.size()],
                 dtype=tf.float32,
                 initializer=contrib.layers.xavier_initializer(),
-                name="w2"
+                name="w3"
             )
-            b2 = tf.get_variable(
+            b3 = tf.get_variable(
                 shape=[Action.size()],
                 dtype=tf.float32,
                 initializer=contrib.layers.xavier_initializer(),
-                name="b2"
+                name="b3"
             )
-            return tf.matmul(v1, w2) + b2
+            return tf.matmul(v1, w3) + b3
 
     def noisy_actor(self, scope):
         """
@@ -124,14 +142,13 @@ class SimpleDriver(AbstractDriver):
         random_action = action + tf.random_normal(shape=tf.shape(action), mean=0, stddev=0.05)*action
         return random_action
 
-
     def critic_loss(self, v):
         """
         loss function for the critic
         :param v: critic NN
         :return: 0d tensor of average loss over all batches
         """
-        return tf.reduce_mean(tf.square(self.g - v))
+        return tf.reduce_mean(tf.square(self.g - v)) + self.alpha*tf.norm(self.pi)
 
     def actor_loss(self, critic_scope, pi, v):
         """
@@ -150,7 +167,7 @@ class SimpleDriver(AbstractDriver):
         :param pi: actor NN
         :return: 0d tensor of average loss over all batches
         """
-        return tf.reduce_mean(tf.square(pi - self.action))
+        return tf.reduce_mean(tf.square(pi - self.action)) + self.alpha*tf.norm(self.pi)
 
     def get_training(self, loss, grad_scope):
         """
@@ -227,10 +244,10 @@ class SimpleDriver(AbstractDriver):
         input_feed_dict[self.action] = batch_actions
         input_feed_dict[self.current_state] = batch_states
 
-        output_feed = [self.a_pretrain, self.a_lost_pretrain]
+        output_feed = [self.a_pretrain, self.a_lost_pretrain, self.pi]
 
-        _, loss = session.run(output_feed, input_feed_dict)
-        return loss
+        _, loss, a = session.run(output_feed, input_feed_dict)
+        return loss, a
 
     def get_noisy_action(self, session, batch_states):
         """
@@ -243,6 +260,21 @@ class SimpleDriver(AbstractDriver):
         input_feed_dict[self.current_state] = batch_states
 
         output_feed = [self.pi_noisy]
+
+        results = session.run(output_feed, input_feed_dict)
+        return results[0]
+
+    def get_action(self, session, batch_states):
+        """
+        returns the actions the Actor thinks should be take for each state
+        :param session: tensorflow session
+        :param batch_states: states to get actions of
+        :return: 
+        """
+        input_feed_dict = {}
+        input_feed_dict[self.current_state] = batch_states
+
+        output_feed = [self.pi]
 
         results = session.run(output_feed, input_feed_dict)
         return results[0]
@@ -313,31 +345,107 @@ class SimpleDriver(AbstractDriver):
                 action = other_driver.get_action([state])[0]
                 training_tuples.append((state, action))
                 state, _, _, _ = car(state=state, action=action, time=self.t_step)
-                bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux)])
+                bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
             bar.target = int(state.s)
-            bar.update(min(int(state.s), int(path.length())))
+            bar.update(int(state.s))
 
         print("Training with {0} examples".format(len(training_tuples)))
         bar = Progbar(target=reiterate*len(training_tuples))
-        loss = 0
+        loss = [0.0]
         for t in range(reiterate):
             random.shuffle(training_tuples)
             for i in range(0, len(training_tuples) - 1, self.batch_size):
                 batch = training_tuples[i:i + self.batch_size]
-                states = np.array([s.as_array(kappa_length=self.kappa_length) for s, a in batch])
-                actions = np.array([a.as_array() for s, a in batch])
-                loss = self.pretrain_actor(session=session, batch_states=states, batch_actions=actions)*.1 + .9*loss
-                bar.update(t*len(training_tuples) + i + len(batch), exact=[("loss", loss), ("i", i)])
+                states = np.array([
+                    s.as_array(kappa_length=self.kappa_length)
+                    for s, a in batch
+                ])
+                actions = np.array([
+                    a.as_array(max_delta=car.max_del, max_t=car.max_t)
+                    for s, a in batch
+                ])
+                l, a = self.pretrain_actor(session=session, batch_states=states, batch_actions=actions)
+                loss.append(l*.01 + .99*loss[-1])
+                bar.update(
+                    t*len(training_tuples) + i + len(batch),
+                    exact=[("loss", loss[-1]), ("i", i)]
+                )
+        return loss
+
+    def test_model(self, session, path, car):
+        car.reset_record()
+        state = car.start_state(Ux=self.initial_velocity, Uy=0, r=0, path=path)
+        bar = Progbar(target=int(path.length())+1)
+        t = 0.0
+        r = 0.0
+        ux = []
+        while not state.is_terminal() and t < 1.5*path.length()*self.initial_velocity:
+            t += self.t_step
+            s = np.array(state.as_array(kappa_length=self.kappa_length))
+            s = np.reshape(s, newshape=[1, np.alen(s)])
+            action = self.get_action(session, s)
+            a = np.reshape(action, newshape=[np.size(action, 1)])
+            action = Action.get_action(a, max_delta=car.max_del, max_t=car.max_t)
+            state, _, _, _ = car(state=state, action=action, time=self.t_step)
+            r = state.reward() + self.gamma*r
+            ux.append(state.Ux)
+            bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
+
+        # records = model.get_records()
+        # animator = CarAnimation(animate_car=True)
+        # animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1)
+        return r, np.mean(ux), state.s
 
 if __name__ == "__main__":
-    paths = [
+    training_paths = [
         cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4),
-        circle_path(radius=100, interval=.1, revolutions=.8, decay=0)
+        circle_path(radius=100, interval=.1, revolutions=.8, decay=0),
+        cospath_decay(length=200, y_scale=-10, frequency=2, decay_amplitude=0, decay_frequency=0),
+        circle_path(radius=200, interval=.1, revolutions=.8, decay=0)
     ]
+    test_paths = training_paths + [
+        cospath_decay(length=100, y_scale=-10, frequency=.5, decay_amplitude=0, decay_frequency=1.0e-4),
+        circle_path(radius=50, interval=.1, revolutions=.8, decay=0),
+        cospath_decay(length=200, y_scale=-10, frequency=3, decay_amplitude=0, decay_frequency=0),
+        circle_path(radius=150, interval=.1, revolutions=.8, decay=0)
+    ]
+
     model = CarModel()
     good_driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model, lookahead=5)
 
-    with tf.Session() as session:
+    with tf.Session() as sess:
         learning_driver = SimpleDriver()
-        learning_driver.init(session)
-        learning_driver.run_pretrain(session=session, car=model, other_driver=good_driver, paths=paths, num_episodes=3, reiterate=10)
+        learning_driver.init(sess)
+        loss = learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths, num_episodes=10, reiterate=100)
+        # plt.semilogy(loss)
+        # plt.show()
+
+        rewards = []
+        for path in test_paths:
+            reward, Ux, s = learning_driver.test_model(session=sess, path=path, car=model)
+
+            model.reset_record()
+            state = model.start_state(Ux=learning_driver.initial_velocity, Uy=0, r=0, path=path)
+            bar = Progbar(target=int(path.length()) + 1)
+            t = 0.0
+            r = 0.0
+            ux = []
+            while not state.is_terminal() and t < 1.5 * path.length() * learning_driver.initial_velocity:
+                t += learning_driver.t_step
+                action = good_driver.get_action([state])[0]
+                state, _, _, _ = model(state=state, action=action, time=learning_driver.t_step)
+                r = state.reward() + learning_driver.gamma*r
+                ux.append(state.Ux)
+                bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
+            rewards.append((reward, r, Ux, np.mean(ux), s, state.s))
+        print("\n")
+        for nn, pid, nn_ux, pid_ux, nn_s, pid_s in rewards:
+            print("Reward diff- pid: {pid} ({pid_ux} / {pid_s}), nn: {nn} ({nn_ux} / {nn_s}), diff {diff}".format(
+                pid=pid,
+                nn=nn,
+                diff=(nn-pid)/pid,
+                pid_ux=pid_ux,
+                nn_ux=nn_ux,
+                pid_s=pid_s,
+                nn_s=nn_s
+            ))

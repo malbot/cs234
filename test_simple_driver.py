@@ -8,8 +8,9 @@ from models.car2 import CarModel
 from models.path import circle_path, cospath_decay
 
 t_step = .001
-path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
+# path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
 # path = circle_path(radius=40, interval=.1, revolutions=1.5, decay=.6)
+path = circle_path(radius=200, interval=.1, revolutions=.8, decay=0)
 # # path = strait_path(10000)
 # path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
 # path = circle_path(radius=100, interval=.1, revolutions=.8, decay=0)
@@ -21,7 +22,7 @@ data = []
 t = 0
 max_t = int(path.length()*1.5/driver.V)
 print("Max t = {0}".format(max_t))
-while not state.is_terminal() and t < max_t:
+while not state.is_terminal(): # and t < max_t:
     t += t_step
     data.append({
         **{
@@ -29,6 +30,8 @@ while not state.is_terminal() and t < max_t:
         },
         "kappa": state.kappa()
     })
+    if state.s > 1005:
+        print(state)
     action = driver.get_action([state])[0]
     state, dx, dy, do = model(state=state, action=action, time=t_step)
     bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("t", t)])

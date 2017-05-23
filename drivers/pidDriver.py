@@ -26,8 +26,10 @@ class pidDriver(AbstractDriver):
             beta = (self.car.b - (self.car.a*self.car.m*state.Ux**2)/(self.car.cy*self.car.l))*kappa
             delta_ff = self.car.l*kappa + K*state.Ux**2*kappa - self.kp*self.x_la*beta
             delta = delta_fb + delta_ff
+            delta = delta if abs(delta) < self.car.max_del else np.sign(delta)*self.car.max_del
 
             torque = 100*(self.V - state.Ux)
+            torque = torque if abs(torque) < self.car.max_t else np.sign(torque)*self.car.max_t
             actions.append(Action(delta=delta, tr=torque, tf=torque))
         return actions
 

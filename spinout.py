@@ -54,7 +54,7 @@ print(state)
 
 records = model.get_records()
 animator = CarAnimation(animate_car=True)
-animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1, states=data)
+animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1)
 
 handles = []
 for name, points in records.items():

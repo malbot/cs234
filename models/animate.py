@@ -33,7 +33,7 @@ class CarAnimation():
             self.rear_wheels_plot.set_data(self.rear_wheels.x[:frame], self.rear_wheels.y[:frame])
             return self.front_wheels, self.rear_wheels,
 
-    def animate(self, front_wheels, rear_wheels, path, interval= 200, states = None):
+    def animate(self, front_wheels, rear_wheels, path, interval=200, states=None):
         """
         animates the front/rear wheels along the path
         :param front_wheels: the PointSet that the front wheels follow
@@ -59,7 +59,7 @@ class CarAnimation():
         # time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
         # energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
         self.data_text = ax.text(1.01, 0.0, '', transform=ax.transAxes)
-        ani = FuncAnimation(fig=fig, func=self, frames=range(4000, len(front_wheels.x), 4), interval=interval)
+        ani = FuncAnimation(fig=fig, func=self, frames=range(0, len(front_wheels.x), 4), interval=interval)
         
         try:
             plt.show()

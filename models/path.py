@@ -23,6 +23,7 @@ class Path():
             self.y[:-1],
             self.y[1:]
         )])
+        self.l = np.sum([np.sqrt((x1-x2)**2 + (y1-y2)**2) for x1, x2, y1, y2 in zip(self.x[:-1], self.x[1:], self.y[:-1], self.y[1:])])
         self.d = d.tolist()
         dx = np.gradient(x)
         ddx = np.gradient(dx)
@@ -30,7 +31,6 @@ class Path():
         ddy = np.gradient(dy)
         self._kappa = (dx * ddy - dy * ddx) / np.power(np.power(dx, 2) + np.power(dy, 2), 3 / 2)
         self.kappa_interp = interp1d(self.d, self._kappa, fill_value=0, bounds_error=False)
-        self.s_interp = interp2d(self.x, self.y, self.d, fill_value=self.d[-1] + 1, bounds_error=False)
         self.x_interp = interp1d(self.d, self.x, fill_value=self.x[-1], bounds_error=False)
         self.y_interp = interp1d(self.d, self.y, fill_value=self.y[-1], bounds_error=False)
         self.l = np.sum([np.sqrt((x1-x2)**2 + (y1-y2)**2) for x1, x2, y1, y2 in zip(self.x[:-1], self.x[1:], self.y[:-1], self.y[1:])])
@@ -44,7 +44,7 @@ class Path():
     def length(self):
         return self.l
 
-    def s(self, x, y, old_s = None):
+    def s(self, x, y, old_s=None):
         if old_s is not None:
             line = LineString([self.line.interpolate(s) for s in np.arange(start=old_s, stop=old_s + self.new_s_max_distance, step=self.interp_interval)])
             return old_s + line.project(Point(x, y))

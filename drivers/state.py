@@ -36,7 +36,7 @@ class State():
 
     @staticmethod
     def size():
-        return 13  # 12 variables, with wf and wr size 2, excluding kappa
+        return 14  # 12 variables, with wf and wr size 2, and path remaining, excluding kappa
 
     def as_array(self, kappa_length, kappa_step_size=1):
         """
@@ -49,6 +49,7 @@ class State():
             [
                 getattr(self, attr) for attr in ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's']
             ]
+            + [self.remainder()]
             + self.wf.tolist()
             + self.wr.tolist()
             + self.kappa(s=[self.s + i*kappa_step_size for i in range(kappa_length)]).tolist()
@@ -60,16 +61,14 @@ class State():
         return self.path.kappa(s)[0]
 
     def is_terminal(self):
-        return self.reward() < 0 or self.remainder() <= 0
+        return self.reward() < 0 or self.remainder() <= 1e-2
 
     def reward(self):
-        if self.path.length() < self.s:
-            return self.Ux
-        elif abs(self.e) > self.e_max:
+        if abs(self.e) > self.e_max:
             return -100
         elif min(self.wr) < -1:
             return -10
-        return 0
+        return self.Ux
 
     def remainder(self):
         return self.path.length() - self.s
