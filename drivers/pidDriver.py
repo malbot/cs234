@@ -33,6 +33,14 @@ class pidDriver(AbstractDriver):
             actions.append(Action(delta=delta, tr=torque, tf=torque))
         return actions
 
+    def get_noisy_action(self, state_batch):
+        actions = self.get_action(state_batch)
+        actions = [
+            Action.get_action(a.as_array(max_delta=1, max_t=1)*np.random.normal(loc=1, scale=0.05), max_delta=1, max_t=1)
+            for a in actions
+        ]
+        return actions
+
     def train(self, R, states):
         # nothing to train
         pass

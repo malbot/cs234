@@ -31,7 +31,8 @@ class SimpleDriver:
     random_action_stddev = 0.05  # stddev of percentage of noise to add to actions
     initial_velocity = 10
     alpha = 0 #0.01
-    tau = 0.01
+    tau = 0.01 # learning rate of the target networks
+    keep_prob = .9
 
     def __init__(self):
         """
@@ -44,37 +45,39 @@ class SimpleDriver:
         :return: 
         """
         # set placeholders
-        self.current_state = tf.placeholder(tf.float32, shape=[None, State.size() + self.kappa_length])
-        self.next_state = tf.placeholder(tf.float32, shape=[None, State.size() + self.kappa_length])
-        self.current_action = tf.placeholder(tf.float32, shape=[None, Action.size()])
-        self.reward = tf.placeholder(tf.float32, shape=[None])
+        self.current_state_placeholder = tf.placeholder(tf.float32, shape=[None, State.size() + self.kappa_length])
+        self.next_state_placeholder = tf.placeholder(tf.float32, shape=[None, State.size() + self.kappa_length])
+        self.current_action_placeholder = tf.placeholder(tf.float32, shape=[None, Action.size()])
+        self.reward_placeholder = tf.placeholder(tf.float32, shape=[None])
+        self.keep_prob_placeholder = tf.placeholder(tf.float32, shape=[])
 
         with tf.variable_scope("simple_driver"):
-            self.pi = self.actor(scope=self.a_scope, state=self.current_state)
-            self.pi_target = self.actor(scope=self.a_target_scope, state=self.next_state)
-            self.pi_noisy = self.noisy_actor(scope=self.a_scope)
-            self.q = self.critic(state=self.current_state, action=self.current_action, scope=self.c_scope)
-            self.q_target = self.critic(state=self.next_state, action=self.pi_target, scope=self.c_target_scope)
+            self.pi = self.actor(scope=self.a_scope, state=self.current_state_placeholder, keep_prob=self.keep_prob_placeholder)
+            self.pi_target = self.actor(scope=self.a_target_scope, state=self.next_state_placeholder, keep_prob=1)
+            self.pi_noisy = self.noisy_actor(pi=self.pi)
+            self.q = self.critic(state=self.current_state_placeholder, action=self.current_action_placeholder, scope=self.c_scope, keep_prob=self.keep_prob_placeholder)
+            self.q_target = self.critic(state=self.next_state_placeholder, action=self.pi_target, scope=self.c_target_scope, keep_prob=1)
 
-            self.c_loss = self.critic_loss(q=self.q, q_target=self.q_target, r=self.reward)
+            self.c_loss = self.critic_loss(q=self.q, q_target=self.q_target, r=self.reward_placeholder)
             self.a_loss = self.actor_loss(pi=self.pi, q_scope=self.c_scope)
             self.a_lost_pretrain = self.pretrain_actor_loss(self.pi)
 
-            self.c_train = self.get_gradient(f=self.c_loss, grad_scope=self.c_scope, scope="c_train")
-            self.a_train = self.get_gradient(f=self.a_loss, grad_scope=self.a_scope, scope="a_train")
-            self.a_pretrain = self.get_gradient(f=self.a_lost_pretrain, grad_scope=self.a_scope, scope="a_pretrain")
+            self.c_train, self.c_norm = self.get_gradient(f=self.c_loss, grad_scope=self.c_scope, scope="c_train")
+            self.a_train, self.a_norm = self.get_gradient(f=self.a_loss, grad_scope=self.a_scope, scope="a_train")
+            self.a_pretrain, self.a_norm_pretrain = self.get_gradient(f=self.a_lost_pretrain, grad_scope=self.a_scope, scope="a_pretrain")
 
             self.update_actor_target = self.update_target_network(learning_network_scope=self.a_scope,
                                                                   target_network_scope=self.a_target_scope)
             self.update_critic_target = self.update_target_network(learning_network_scope=self.c_scope,
                                                                    target_network_scope=self.c_target_scope)
 
-    def critic(self, state, action, scope, reuse=False):
+    def critic(self, state, action, scope, keep_prob, reuse=False):
         """
         adding a 2-layer NN for the critic (state value prediction)
         :param state: 
         :param action: 
         :param scope: 
+        :param keep_prob:
         :param reuse: 
         :return: 
         """
@@ -92,28 +95,44 @@ class SimpleDriver:
                 initializer=contrib.layers.xavier_initializer(),
                 name="b1"
             )
-            v1 = tf.nn.softmax(tf.matmul(tf.concat([state, action], axis=1), w1) + b1)
+            v1 = tf.matmul(tf.nn.dropout(tf.concat([state, action], axis=1), keep_prob=keep_prob), w1) + b1
 
             # layer 2
             w2 = tf.get_variable(
-                shape=[self.critic_hidden_length, 1],
+                shape=[self.critic_hidden_length, self.critic_hidden_length],
                 dtype=tf.float32,
                 initializer=contrib.layers.xavier_initializer(),
                 name="w2"
             )
             b2 = tf.get_variable(
-                shape=[1],
+                shape=[self.critic_hidden_length],
                 dtype=tf.float32,
                 initializer=contrib.layers.xavier_initializer(),
                 name="b2"
             )
-            return tf.nn.softmax(tf.matmul(v1, w2) + b2)
+            v2 = tf.matmul(tf.nn.dropout(v1, keep_prob=keep_prob), w2) + b2
 
-    def actor(self, scope, state, reuse=False):
+            # layer 3
+            w3 = tf.get_variable(
+                shape=[self.critic_hidden_length, 1],
+                dtype=tf.float32,
+                initializer=contrib.layers.xavier_initializer(),
+                name="w3"
+            )
+            b3 = tf.get_variable(
+                shape=[1],
+                dtype=tf.float32,
+                initializer=contrib.layers.xavier_initializer(),
+                name="b3"
+            )
+            return tf.matmul(v2, w3) + b3
+
+    def actor(self, scope, state, keep_prob, reuse=False):
         """
         adding a 3-layer NN for the actor (action generation from current state)
         :param scope: 
         :param state:
+        :param keep_prob:
         :param reuse: 
         :return: 
         """
@@ -131,7 +150,22 @@ class SimpleDriver:
                 initializer=contrib.layers.xavier_initializer(),
                 name="b1"
             )
-            v1 = tf.matmul(state, w1) + b1
+            v1 = tf.nn.tanh(tf.matmul(tf.nn.dropout(state, keep_prob=keep_prob), w1) + b1)
+
+            # layer 2
+            w2 = tf.get_variable(
+                shape=[self.actor_hidden_length, self.actor_hidden_length],
+                dtype=tf.float32,
+                initializer=contrib.layers.xavier_initializer(),
+                name="w2"
+            )
+            b2 = tf.get_variable(
+                shape=[self.actor_hidden_length],
+                dtype=tf.float32,
+                initializer=contrib.layers.xavier_initializer(),
+                name="b2"
+            )
+            v2 = tf.nn.tanh(tf.matmul(tf.nn.dropout(v1, keep_prob=keep_prob), w2) + b2)
 
             # layer 3
             w3 = tf.get_variable(
@@ -146,16 +180,15 @@ class SimpleDriver:
                 initializer=contrib.layers.xavier_initializer(),
                 name="b3"
             )
-            return tf.matmul(v1, w3) + b3
+            return tf.nn.tanh(tf.matmul(v2, w3) + b3)
 
-    def noisy_actor(self, scope):
+    def noisy_actor(self, pi):
         """
         returns actions with small randomness added
-        :param scope: must be same scope as actor scope
+        :param pi: the non-noisy actor
         :return: 
         """
-        action = self.actor(scope=scope, state=self.current_state, reuse=True)
-        random_action = action + tf.random_normal(shape=tf.shape(action), mean=0, stddev=0.05)*action
+        random_action = pi + tf.random_normal(shape=tf.shape(pi), mean=0, stddev=0.05)*pi
         return random_action
 
     def critic_loss(self, q, q_target, r):
@@ -176,7 +209,7 @@ class SimpleDriver:
         :param q_scope: scope of critic network, not target critic network
         :return: 
         """
-        q = self.critic(state=self.current_state, action=pi, scope=q_scope, reuse=True)
+        q = self.critic(state=self.current_state_placeholder, action=pi, scope=q_scope, reuse=True, keep_prob=1)
         grad = tf.reduce_mean(-1*q)
         return grad
 
@@ -188,14 +221,16 @@ class SimpleDriver:
         :return: 
         """
         learning = {
-            t.name.split("/")[0]: t for t in
-            tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope=learning_network_scope)
+            t.name.split("/")[-1]: t for t in
+            tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope="")
+            if "/{0}/".format(learning_network_scope) in t.name
         }
         target = {
-            t.name.split("/")[0]: t for t in
-            tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope=target_network_scope)
+            t.name.split("/")[-1]: t for t in
+            tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope="")
+            if "/{0}/".format(target_network_scope) in t.name
         }
-        assignment = tf.stack([
+        assignment = tf.tuple([
             tf.assign(value=learning[n]*self.tau + (1-self.tau)*target[n], ref=target[n])
             for n in learning.keys()
         ])
@@ -207,13 +242,14 @@ class SimpleDriver:
         :param pi: actor NN
         :return: 0d tensor of average loss over all batches
         """
-        return tf.reduce_mean(tf.square(pi - self.current_action)) + self.alpha * tf.norm(self.pi)
+        return tf.reduce_mean(tf.square(pi - self.current_action_placeholder)) + self.alpha * tf.norm(self.pi)
 
     def get_gradient(self, f, grad_scope, scope):
         """
         returns the training function for a loss function
         :param f: the loss function to take gradient of
         :param grad_scope: scope of variables to include in output 
+        :param scope: new scope of gradient functions
         :return: tensor that applies gradients to variables of loss tensor that are of scope grad_scope
         """
         opt = tf.train.AdamOptimizer(self.lr)
@@ -225,7 +261,8 @@ class SimpleDriver:
         ]
         with tf.variable_scope(scope):
             opt = opt.apply_gradients(grads_and_vars)
-        return opt
+            norm = tf.global_norm([grad for grad, var in grads_and_vars])
+        return opt, norm
 
     def init(self, session):
         """
@@ -247,17 +284,18 @@ class SimpleDriver:
         :return: 
         """
         input_feed_dict = {
-            self.reward: reward,
-            self.current_state: state,
-            self.next_state: next_state,
-            self.current_action: action
+            self.reward_placeholder: reward,
+            self.current_state_placeholder: state,
+            self.next_state_placeholder: next_state,
+            self.current_action_placeholder: action,
+            self.keep_prob_placeholder: self.keep_prob
         }
 
-        output_feed = [self.c_train, self.c_loss]
+        output_feed = [self.c_train, self.c_loss, self.c_norm]
 
-        _, loss = session.run(output_feed, input_feed_dict)
+        _, loss, norm = session.run(output_feed, input_feed_dict)
 
-        return loss
+        return loss, norm
 
     def train_actor(self, session, state):
         """
@@ -267,14 +305,16 @@ class SimpleDriver:
         :return: 
         """
         input_feed_dict = {
-            self.current_state: state,
+            self.current_state_placeholder: state,
+            self.keep_prob_placeholder: self.keep_prob
         }
 
-        output_feed = [self.a_train, self.a_loss]
+        output_feed = [self.a_train, self.a_loss, self.pi, self.a_norm]
 
-        _, loss = session.run(output_feed, input_feed_dict)
-
-        return loss
+        _, loss, a, norm = session.run(output_feed, input_feed_dict)
+        input_feed_dict[self.current_action_placeholder] = a
+        # q = session.run([self.q], input_feed_dict)
+        return loss, norm
 
     def pretrain_actor(self, session, state, action):
         """
@@ -285,8 +325,9 @@ class SimpleDriver:
         :return: 
         """
         input_feed_dict = {
-            self.current_state: state,
-            self.current_action: action
+            self.current_state_placeholder: state,
+            self.current_action_placeholder: action,
+            self.keep_prob_placeholder: self.keep_prob
         }
 
         output_feed = [self.a_pretrain, self.a_lost_pretrain, self.pi]
@@ -312,7 +353,8 @@ class SimpleDriver:
         :return: 
         """
         input_feed_dict = {
-            self.current_state: state
+            self.current_state_placeholder: state,
+            self.keep_prob_placeholder: 1
         }
 
         output_feed = [self.pi_noisy]
@@ -328,7 +370,8 @@ class SimpleDriver:
         :return: 
         """
         input_feed_dict = {
-            self.current_state: state
+            self.current_state_placeholder: state,
+            self.keep_prob_placeholder: 1
         }
 
         output_feed = [self.pi]
@@ -350,19 +393,26 @@ class SimpleDriver:
         R = []
         bar = Progbar(target=np.sum(paths[i % len(paths)].length() for i in range(episodes)))
         critic_loss = 0
+        critic_norm = 0
         actor_loss = 0
+        actor_norm = 0
+        bar_offset = 0
         for epi in range(episodes):
-            bar_offset = bar.seen_so_far
             s = car.start_state(Ux=self.initial_velocity, Uy=0, r=0, path=paths[epi % len(paths)])
             while not s.is_terminal():
-                bar.update(current=bar_offset + s.s, exact=[("critic loss", critic_loss), ("actor loss", actor_loss)])
+                bar.update(current=bar_offset + s.s, exact=[
+                    ("critic loss", critic_loss),
+                    ("critic norm", critic_norm),
+                    ("actor loss", actor_loss),
+                    ("actor norm", actor_norm)
+                ])
                 a = self.get_noisy_action(session, [s.as_array(kappa_length=self.kappa_length)])[0]
                 sp, _, _, _ = car(
                     state=s,
                     action=Action.get_action(a, max_delta=car.max_del, max_t=car.max_t),
                     time=self.t_step
                 )
-                r = sp.reward()
+                r = sp.reward(t_step=self.t_step)
                 R.append((s.as_array(kappa_length=self.kappa_length), a, r, sp.as_array(kappa_length=self.kappa_length)))
                 if len(R) > replay_buffer_size:
                     del R[0]
@@ -374,23 +424,20 @@ class SimpleDriver:
                     rewards = np.array([r for s, a, r, sp in batch])
                     state_primes = np.array([sp for s, a, r, sp in batch])
 
-                    critic_loss = self.train_critic(
+                    critic_loss, critic_norm = self.train_critic(
                         session=session,
                         state=states,
                         action=actions,
                         reward=rewards,
                         next_state=state_primes
                     )
-                    actor_loss = self.train_actor(session=session, state=states)
+                    actor_loss, actor_norm = self.train_actor(session=session, state=states)
                     self.update_targets(session=session)
                     if len(R) < replay_buffer_size:
                         break
 
                 s = sp
-            bar.update(
-                current=s.path.length() + bar_offset,
-                exact=[("critic loss", critic_loss), ("actor loss", actor_loss)]
-            )
+            bar_offset = s.path.length() + bar_offset
         bar.update(
             current=bar.target,
             exact=[("critic loss", critic_loss), ("actor loss", actor_loss)]
@@ -419,13 +466,16 @@ class SimpleDriver:
             while not s.is_terminal():
                 a = other_driver.get_action([s])[0]
                 sp, _, _, _ = car(state=s, action=a, time=self.t_step)
-                bar.update(int(s.s), exact=[("e", sp.e), ("Ux", sp.Ux), ("s", sp.s)])
                 training_tuples.append((
                     s.as_array(kappa_length=self.kappa_length),
                     a.as_array(max_delta=car.max_del, max_t=car.max_t),
-                    s.r,
+                    s.reward(t_step=self.t_step),
                     sp.as_array(kappa_length=self.kappa_length)
                 ))
+
+                a = other_driver.get_noisy_action([s])[0]
+                sp, _, _, _ = car(state=s, action=a, time=self.t_step)
+                bar.update(int(s.s), exact=[("e", sp.e), ("Ux", sp.Ux), ("s", sp.s)])
                 s = sp
             bar.target = int(s.s)
             bar.update(int(s.s))
@@ -443,17 +493,19 @@ class SimpleDriver:
                 rewards = np.array([r for s, a, r, sp in batch])
                 state_primes = np.array([sp for s, a, r, sp in batch])
                 actor_loss, a = self.pretrain_actor(session=session, state=states, action=actions)
-                critic_loss = self.train_critic(
+                c_loss, mean = self.train_critic(
                     session=session,
                     state=states,
                     action=actions,
                     reward=rewards,
                     next_state=state_primes
-                )*.01 + .99*critic_loss
+                )
+                critic_loss = c_loss*.01 + .99*critic_loss
+                self.update_targets(session=session)
                 loss.append(actor_loss*.01 + .99*loss[-1])
                 bar.update(
                     t*len(training_tuples) + i + len(batch),
-                    exact=[("actor loss", loss[-1]), ("critic loss", critic_loss), ("i", i)]
+                    exact=[("actor loss", loss[-1]), ("critic loss", critic_loss), ("critic mean", mean), ("i", i)]
                 )
         return loss
 
@@ -479,7 +531,7 @@ class SimpleDriver:
             a = np.reshape(action, newshape=[np.size(action, 1)])
             action = Action.get_action(a, max_delta=car.max_del, max_t=car.max_t)
             state, _, _, _ = car(state=state, action=action, time=self.t_step)
-            r = state.reward() + self.gamma*r
+            r = state.reward(t_step=self.t_step) + self.gamma*r
             ux.append(state.Ux)
             bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
 
@@ -509,11 +561,11 @@ def test():
     with tf.Session() as sess:
         learning_driver = SimpleDriver()
         learning_driver.init(sess)
-        # print("pretrain")
-        # loss = learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
-        #                                     num_episodes=10, reiterate=100)
+        print("pretrain")
+        loss = learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
+                                            num_episodes=len(training_paths)*3, reiterate=10)
         print("training")
-        learning_driver.run_training(session=sess, car=model, paths=training_paths, episodes=100, replay_buffer_size=1000, replay=30)
+        learning_driver.run_training(session=sess, car=model, paths=training_paths, episodes=1000, replay_buffer_size=1000, replay=10)
         # plt.semilogy(loss)
         # plt.show()
         print("testing")
@@ -531,7 +583,7 @@ def test():
                 t += learning_driver.t_step
                 action = good_driver.get_action([state])[0]
                 state, _, _, _ = model(state=state, action=action, time=learning_driver.t_step)
-                r = state.reward() + learning_driver.gamma * r
+                r = state.reward(t_step=model.t_step) + learning_driver.gamma * r
                 ux.append(state.Ux)
                 bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
             rewards.append((reward, r, Ux, np.mean(ux), s, state.s))

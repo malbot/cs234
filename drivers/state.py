@@ -63,12 +63,12 @@ class State():
     def is_terminal(self):
         return self.reward() < 0 or self.remainder() <= 1e-2
 
-    def reward(self):
+    def reward(self, t_step=1):
         if abs(self.e) > self.e_max:
             return -100
         elif min(self.wr) < -1:
             return -10
-        return self.Ux
+        return self.Ux*t_step
 
     def remainder(self):
         return self.path.length() - self.s

@@ -13,10 +13,10 @@ class Action():
 
     @staticmethod
     def get_action(array, max_delta, max_t):
-        return Action(delta=array[0]*max_delta*2 - max_delta, tr=array[1]*max_t*2 - max_t, tf=array[2]*max_t*2 - max_t)
+        return Action(delta=array[0]*max_delta, tr=array[1]*max_t, tf=array[2]*max_t)
 
     def as_array(self, max_delta, max_t):
-        return np.asarray([self.delta/(max_delta*2) + .5, self.tr/(max_t*2)+.5, self.tf/(max_t*2)+.5])
+        return np.asarray([self.delta/max_delta, self.tr/max_t, self.tf/max_t])
 
     def __call__(self):
         return self.delta, self.tr, self.tf
