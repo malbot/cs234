@@ -19,8 +19,8 @@ class SimpleDriver:
     kappa_length = 20  # number of kappa values of the path to include
     critic_hidden_length = 100
     actor_hidden_length = 100
-    gamma = .9  # reward discount
-    lr = 0.001
+    gamma = .999  # reward discount
+    lr = 1e-5
     clip_norm = 10
     c_scope = "v"
     c_target_scope = "v_target"
@@ -188,7 +188,7 @@ class SimpleDriver:
         :param pi: the non-noisy actor
         :return: 
         """
-        random_action = pi + tf.random_normal(shape=tf.shape(pi), mean=0, stddev=0.05)*pi
+        random_action = pi + tf.random_normal(shape=tf.shape(pi), mean=0, stddev=0.05)
         return random_action
 
     def critic_loss(self, q, q_target, r):
@@ -400,7 +400,7 @@ class SimpleDriver:
         for epi in range(episodes):
             s = car.start_state(Ux=self.initial_velocity, Uy=0, r=0, path=paths[epi % len(paths)])
             while not s.is_terminal():
-                bar.update(current=bar_offset + s.s, exact=[
+                bar.update(current=bar_offset + s.s, exp_avg=[
                     ("critic loss", critic_loss),
                     ("critic norm", critic_norm),
                     ("actor loss", actor_loss),
@@ -440,7 +440,12 @@ class SimpleDriver:
             bar_offset = s.path.length() + bar_offset
         bar.update(
             current=bar.target,
-            exact=[("critic loss", critic_loss), ("actor loss", actor_loss)]
+            exp_avg=[
+                ("critic loss", critic_loss),
+                ("critic norm", critic_norm),
+                ("actor loss", actor_loss),
+                ("actor norm", actor_norm)
+            ]
         )
 
 
@@ -505,7 +510,7 @@ class SimpleDriver:
                 loss.append(actor_loss*.01 + .99*loss[-1])
                 bar.update(
                     t*len(training_tuples) + i + len(batch),
-                    exact=[("actor loss", loss[-1]), ("critic loss", critic_loss), ("critic mean", mean), ("i", i)]
+                    exact=[("actor loss", loss[-1]), ("critic loss", critic_loss), ("critic norm", mean), ("i", i)]
                 )
         return loss
 
@@ -531,7 +536,7 @@ class SimpleDriver:
             a = np.reshape(action, newshape=[np.size(action, 1)])
             action = Action.get_action(a, max_delta=car.max_del, max_t=car.max_t)
             state, _, _, _ = car(state=state, action=action, time=self.t_step)
-            r = state.reward(t_step=self.t_step) + self.gamma*r
+            r += state.reward(t_step=self.t_step)
             ux.append(state.Ux)
             bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
 
@@ -563,9 +568,9 @@ def test():
         learning_driver.init(sess)
         print("pretrain")
         loss = learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
-                                            num_episodes=len(training_paths)*3, reiterate=10)
+                                            num_episodes=len(training_paths), reiterate=300)
         print("training")
-        learning_driver.run_training(session=sess, car=model, paths=training_paths, episodes=1000, replay_buffer_size=1000, replay=10)
+        learning_driver.run_training(session=sess, car=model, paths=training_paths, episodes=10000, replay_buffer_size=10000, replay=10)
         # plt.semilogy(loss)
         # plt.show()
         print("testing")
@@ -583,13 +588,13 @@ def test():
                 t += learning_driver.t_step
                 action = good_driver.get_action([state])[0]
                 state, _, _, _ = model(state=state, action=action, time=learning_driver.t_step)
-                r = state.reward(t_step=model.t_step) + learning_driver.gamma * r
+                r += state.reward(t_step=learning_driver.t_step)
                 ux.append(state.Ux)
                 bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
             rewards.append((reward, r, Ux, np.mean(ux), s, state.s))
         print("\n")
         for nn, pid, nn_ux, pid_ux, nn_s, pid_s in rewards:
-            print("Reward diff- pid: {pid} ({pid_ux} / {pid_s}), nn: {nn} ({nn_ux} / {nn_s}), diff {diff}".format(
+            print("Reward diff- pid: {pid} ({pid_ux} [m/s] / {pid_s} [m]), nn: {nn} ({nn_ux} [m/s] / {nn_s} [m]), diff {diff}".format(
                 pid=pid,
                 nn=nn,
                 diff=(nn - pid) / pid,

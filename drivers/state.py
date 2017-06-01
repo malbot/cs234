@@ -68,7 +68,7 @@ class State():
             return -100
         elif min(self.wr) < -1:
             return -10
-        return self.Ux*t_step
+        return self.Ux*t_step*(self.e_max - abs(self.e))/self.e_max
 
     def remainder(self):
         return self.path.length() - self.s
