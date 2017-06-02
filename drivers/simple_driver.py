@@ -434,7 +434,7 @@ class SimpleDriver:
                 ))
                 if len(R) > replay_buffer_size:
                     del R[0]
-
+                state_p = sp
                 for _ in range(replay):
                     batch = R if len(R) < self.batch_size else random.sample(R, k=self.batch_size)
                     states = np.array([s for s, a, r, sp in batch])
@@ -454,7 +454,7 @@ class SimpleDriver:
                     if len(R) < replay_buffer_size:
                         break
 
-                s = sp
+                s = state_p
             bar_offset = s.path.length() + bar_offset
         bar.update(
             current=bar.target,
