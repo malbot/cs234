@@ -647,7 +647,6 @@ class SimpleDriver(object):
             cospath_decay(length=200, y_scale=-10, frequency=2, decay_amplitude=0, decay_frequency=0),
             circle_path(radius=200, interval=.1, revolutions=.8, decay=0),
             strait_path(length=200)
-
         ]
         test_paths = training_paths + [
             cospath_decay(length=100, y_scale=-10, frequency=.5, decay_amplitude=0, decay_frequency=1.0e-4),
