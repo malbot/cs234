@@ -52,6 +52,10 @@ class SimpleDriver:
         print("Initializing {class_name} model".format(class_name=type(self).__name__))
 
         self.save_path = "models/{name}".format(name=type(self).__name__)
+        if not os.path.exists("models"):
+            os.mkdir("models")
+        if not os.path.exists(self.save_path):
+            os.mkdir(self.save_path)
 
         # set placeholders
         self.current_state_placeholder = tf.placeholder(tf.float32, shape=[None, State.size() + self.kappa_length])
@@ -584,6 +588,7 @@ class SimpleDriver:
             timestamp=time.time(),
             path=self.save_path
         )
+        os.mkdir(save_path)
         saver = tf.train.Saver()
         saver.save(session, "{path}/model.ckpt".format(path=save_path))
         print("Model saved to in directory {path}".format(path=save_path))
@@ -591,10 +596,13 @@ class SimpleDriver:
             with open("{path}/path_{i}.txt".format(path=save_path, i=i), "w") as file:
                 json.dump(result, file)
 
-        return save_path
+        return save_path, np.mean(reward)
 
     def load_model(self, session):
-        folders = [f for f in os.listdir(self.save_path) if os.path.isdir(f)]
+        try:
+            folders = ["{path}/{f}".format(path=self.save_path, f=f) for f in os.listdir(self.save_path) if os.path.isdir("{path}/{f}".format(path=self.save_path, f=f))]
+        except FileNotFoundError:
+            folders = []
         if len(folders) > 0:
             list.sort(folders)
             best_model_path = folders[-1]
@@ -623,11 +631,26 @@ class SimpleDriver:
 
         learning_driver = self
         learning_driver.init(sess)
+        self.load_model(sess)
         print("pretrain")
         loss = learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
                                             num_episodes=len(training_paths), reiterate=300)
         print("training")
-        learning_driver.run_training(session=sess, car=model, paths=training_paths, episodes=10000, replay_buffer_size=10000, replay=10)
+        for i in range(10):
+            learning_driver.run_training(
+                session=sess,
+                car=model,
+                paths=training_paths,
+                episodes=100,
+                replay_buffer_size=100,
+                replay=1
+            )
+            path, r = self.save_model(
+                session=sess,
+                paths=training_paths,
+                car=model
+            )
+            print("Epoc {i} had average reward of {r}".format(i=i, r=r))
         # plt.semilogy(loss)
         # plt.show()
         print("testing")
@@ -660,6 +683,7 @@ class SimpleDriver:
                 pid_s=pid_s,
                 nn_s=nn_s
             ))
+
 
 if __name__ == "__main__":
     with tf.Session() as Session:
