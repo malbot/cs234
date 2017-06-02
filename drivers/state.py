@@ -61,14 +61,15 @@ class State():
         return self.path.kappa(s)[0]
 
     def is_terminal(self):
-        return self.reward() < 0 or self.remainder() <= 1e-2
+        return abs(self.e) > self.e_max < 0 or self.remainder() <= 1e-2 or min(self.wr) < -1
 
     def reward(self, t_step=1):
+        worst_reward = -(1/t_step)*self.path.length()*1.1
         if abs(self.e) > self.e_max:
-            return -100
+            return worst_reward
         elif min(self.wr) < -1:
-            return -10
-        return self.Ux*t_step*(self.e_max - abs(self.e))/self.e_max
+            return worst_reward
+        return -1*t_step*self.s/self.path.length()
 
     def remainder(self):
         return self.path.length() - self.s
