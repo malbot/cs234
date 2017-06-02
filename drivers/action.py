@@ -21,6 +21,13 @@ class Action():
     def __call__(self):
         return self.delta, self.tr, self.tf
 
+    def __str__(self):
+        return "delta = {0:.4g}, tr = {1:.4g}, tf = {2:.4g}".format(
+            self.delta,
+            self.tr,
+            self.tf,
+        )
+
 if __name__ == "__main__":
     t_max = 150
     d_max = np.pi/2

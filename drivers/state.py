@@ -86,13 +86,14 @@ class State():
         return self.wy - np.sin(self.wo) * model.b
 
     def __str__(self):
-        return "Ux = {0}, Uy = {1}, wf = {2}, wr={3}, e = {4}, s = {5}".format(
+        return "[r={6:.4g}]: Ux = {0:.4g}, Uy = {1:.4g}, wf = {2}, wr={3}, e = {4:.4g}, s = {5:.4g}".format(
             self.Ux,
             self.Uy,
             self.wf,
             self.wr,
             self.e,
-            self.s
+            self.s,
+            self.reward()
         )
 
 if __name__ == "__main__":
