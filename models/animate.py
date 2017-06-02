@@ -1,10 +1,11 @@
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib as mpl
 from matplotlib.animation import FuncAnimation
 from numpy import cos
-from models.path import Path
 
+from models.path import Path
 from models.gps import PointSet
 
 
@@ -66,6 +67,7 @@ class CarAnimation():
         # time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
         # energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
         self.data_text = ax.text(1.01, 0.0, '', transform=ax.transAxes)
+        mpl.use('Agg')
         ani = FuncAnimation(fig=fig, func=self, frames=len(front_wheels.x), interval=interval)
 
         if save_to is not None:

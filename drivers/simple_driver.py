@@ -6,7 +6,6 @@ import random
 import time
 import json
 import os
-from matplotlib import pyplot as plt
 
 # from drivers.abstract_driver import AbstractDriver
 from drivers.state import State
@@ -18,7 +17,7 @@ from bar import Progbar
 from models.animate import CarAnimation
 
 
-class SimpleDriver:
+class SimpleDriver(object):
     kappa_length = 20  # number of kappa values of the path to include
     kappa_step_size = .5
     critic_hidden_length = 100

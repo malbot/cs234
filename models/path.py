@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib as mpl
+mpl.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d, interp2d
 from shapely.geometry import LineString, Point

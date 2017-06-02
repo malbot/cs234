@@ -1,5 +1,5 @@
 
-class AbstractDriver():
+class AbstractDriver(object):
 
     def get_action(self, state_batch):
         """
