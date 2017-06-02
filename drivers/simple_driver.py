@@ -3,6 +3,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib as contrib
 import random
+import time
+import json
+import os
 from matplotlib import pyplot as plt
 
 # from drivers.abstract_driver import AbstractDriver
@@ -17,6 +20,7 @@ from models.animate import CarAnimation
 
 class SimpleDriver:
     kappa_length = 20  # number of kappa values of the path to include
+    kappa_step_size = .5
     critic_hidden_length = 100
     actor_hidden_length = 100
     gamma = .999  # reward discount
@@ -44,6 +48,11 @@ class SimpleDriver:
         r: reward R, the reward for a single (s,a,s') tuple
         :return: 
         """
+
+        print("Initializing {class_name} model".format(class_name=type(self).__name__))
+
+        self.save_path = "models/{name}".format(name=type(self).__name__)
+
         # set placeholders
         self.current_state_placeholder = tf.placeholder(tf.float32, shape=[None, State.size() + self.kappa_length])
         self.next_state_placeholder = tf.placeholder(tf.float32, shape=[None, State.size() + self.kappa_length])
@@ -221,12 +230,12 @@ class SimpleDriver:
         :return: 
         """
         learning = {
-            t.name.split("/")[-1]: t for t in
+            "/".join([k for k in t.name.split("/") if k != learning_network_scope]): t for t in
             tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope="")
             if "/{0}/".format(learning_network_scope) in t.name
         }
         target = {
-            t.name.split("/")[-1]: t for t in
+            "/".join([k for k in t.name.split("/") if k != target_network_scope]): t for t in
             tf.get_collection(key=tf.GraphKeys.TRAINABLE_VARIABLES, scope="")
             if "/{0}/".format(target_network_scope) in t.name
         }
@@ -406,14 +415,19 @@ class SimpleDriver:
                     ("actor loss", actor_loss),
                     ("actor norm", actor_norm)
                 ])
-                a = self.get_noisy_action(session, [s.as_array(kappa_length=self.kappa_length)])[0]
+                a = self.get_noisy_action(session, [s.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)])[0]
                 sp, _, _, _ = car(
                     state=s,
                     action=Action.get_action(a, max_delta=car.max_del, max_t=car.max_t),
                     time=self.t_step
                 )
                 r = sp.reward(t_step=self.t_step)
-                R.append((s.as_array(kappa_length=self.kappa_length), a, r, sp.as_array(kappa_length=self.kappa_length)))
+                R.append((
+                    s.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size),
+                    a,
+                    r,
+                    sp.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)
+                ))
                 if len(R) > replay_buffer_size:
                     del R[0]
 
@@ -472,10 +486,10 @@ class SimpleDriver:
                 a = other_driver.get_action([s])[0]
                 sp, _, _, _ = car(state=s, action=a, time=self.t_step)
                 training_tuples.append((
-                    s.as_array(kappa_length=self.kappa_length),
+                    s.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size),
                     a.as_array(max_delta=car.max_del, max_t=car.max_t),
                     s.reward(t_step=self.t_step),
-                    sp.as_array(kappa_length=self.kappa_length)
+                    sp.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)
                 ))
 
                 a = other_driver.get_noisy_action([s])[0]
@@ -530,7 +544,7 @@ class SimpleDriver:
         ux = []
         while not state.is_terminal() and t < 1.5*path.length()*self.initial_velocity:
             t += self.t_step
-            s = np.array(state.as_array(kappa_length=self.kappa_length))
+            s = np.array(state.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size))
             s = np.reshape(s, newshape=[1, np.alen(s)])
             action = self.get_action(session, s)
             a = np.reshape(action, newshape=[np.size(action, 1)])
@@ -545,26 +559,69 @@ class SimpleDriver:
         # animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1)
         return r, np.mean(ux), state.s
 
+    def save_model(self, session, paths, car):
+        summary = ""
+        results = []
+        reward = []
+        for path, i in zip(paths, range(1, len(paths)+1)):
+            r, ux, s = self.test_model(session=session, path=path, car=car)
+            summary += "Path {i}, r = {r}, mean speed = {ux}, total distance = {s}".format(
+                i=i,
+                ux=ux,
+                r=r,
+                s=s
+            )
+            results.append({
+                "ux": ux,
+                "r": r,
+                "i": i,
+                "s": s,
+                "path": list(zip(path.x, path.y))
+            })
+            reward.append(r)
+        save_path = "{path}/{reward:.3g}_{timestamp}".format(
+            reward=np.mean(reward),
+            timestamp=time.time(),
+            path=self.save_path
+        )
+        saver = tf.train.Saver()
+        saver.save(session, "{path}/model.ckpt".format(path=save_path))
+        print("Model saved to in directory {path}".format(path=save_path))
+        for result, i in zip(results, range(1, len(results)+1)):
+            with open("{path}/path_{i}.txt".format(path=save_path, i=i), "w") as file:
+                json.dump(result, file)
 
-def test():
-    training_paths = [
-        cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4),
-        circle_path(radius=100, interval=.1, revolutions=.8, decay=0),
-        cospath_decay(length=200, y_scale=-10, frequency=2, decay_amplitude=0, decay_frequency=0),
-        circle_path(radius=200, interval=.1, revolutions=.8, decay=0)
-    ]
-    test_paths = training_paths + [
-        cospath_decay(length=100, y_scale=-10, frequency=.5, decay_amplitude=0, decay_frequency=1.0e-4),
-        circle_path(radius=50, interval=.1, revolutions=.8, decay=0),
-        cospath_decay(length=200, y_scale=-10, frequency=3, decay_amplitude=0, decay_frequency=0),
-        circle_path(radius=150, interval=.1, revolutions=.8, decay=0)
-    ]
+        return save_path
 
-    model = CarModel()
-    good_driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model, lookahead=5)
+    def load_model(self, session):
+        folders = [f for f in os.listdir(self.save_path) if os.path.isdir(f)]
+        if len(folders) > 0:
+            list.sort(folders)
+            best_model_path = folders[-1]
+            saver = tf.train.Saver()
+            saver.restore(session, "{path}/model.ckpt".format(path=best_model_path))
+            print("Loaded model from {path}".format(path=best_model_path))
+        else:
+            print("No model could be found")
 
-    with tf.Session() as sess:
-        learning_driver = SimpleDriver()
+    def test(self, sess):
+        training_paths = [
+            cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4),
+            circle_path(radius=100, interval=.1, revolutions=.8, decay=0),
+            cospath_decay(length=200, y_scale=-10, frequency=2, decay_amplitude=0, decay_frequency=0),
+            circle_path(radius=200, interval=.1, revolutions=.8, decay=0)
+        ]
+        test_paths = training_paths + [
+            cospath_decay(length=100, y_scale=-10, frequency=.5, decay_amplitude=0, decay_frequency=1.0e-4),
+            circle_path(radius=50, interval=.1, revolutions=.8, decay=0),
+            cospath_decay(length=200, y_scale=-10, frequency=3, decay_amplitude=0, decay_frequency=0),
+            circle_path(radius=150, interval=.1, revolutions=.8, decay=0)
+        ]
+
+        model = CarModel()
+        good_driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model, lookahead=5)
+
+        learning_driver = self
         learning_driver.init(sess)
         print("pretrain")
         loss = learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
@@ -605,4 +662,6 @@ def test():
             ))
 
 if __name__ == "__main__":
-    test()
+    with tf.Session() as Session:
+        model = SimpleDriver()
+        model.test(sess=Session)

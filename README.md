@@ -10,3 +10,14 @@ Run all scripts from the root directory.
 The second model (car2) calculates the values by interpolating the vehicles current position with the path. This is more accurate, however, the interpolation is somewhat computationally intensive.
 
 Currently, only a simple feed-forward/feed-back controller exists, working on how to build a Actor-critic reinforcement learning vehicle controller.
+
+Will need to install `python3-tk`:\
+`sudo apt-get install python3-tk`
+
+One of the classes uses a library that requires geos_c, to install for ubuntu use \
+ `sudo apt-get install libgeos-dev`
+
+Also, some systems, the classes do not import properly, so if you get an error saying \
+`ImportError: No module named 'drivers.<some file in drivers>'`\
+Then run the file that you want by:\
+`python3 -mdrivers.<file name>`
