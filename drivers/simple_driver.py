@@ -605,4 +605,5 @@ def test():
             ))
 
 if __name__ == "__main__":
-    test()
+    with tf.device('/gpu:0'):
+        test()

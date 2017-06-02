@@ -81,7 +81,7 @@ if __name__ == "__main__":
         action = Action(-.001*i, 100, 100)
         state = car(state=state, action=action, time=tstep)
         print(list(gps()) + list(car.state().items()))
-    print([np.sqrt((xf - xb)**2 + (yf - yb)**2) for xf, yf, xb, yb in zip(*gps.get_records()['front'], *gps.get_records()['back'])])
+    #print([np.sqrt((xf - xb)**2 + (yf - yb)**2) for xf, yf, xb, yb in zip(*gps.get_records()['front'], *gps.get_records()['back'])])
     handles = []
     for name, points in gps.get_records().items():
         handles.append(plt.plot(points.x, points.y, label=name)[0])
