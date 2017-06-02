@@ -103,7 +103,7 @@ def circle_path(radius, interval=0.1, revolutions=1, decay = 0):
 
 def strait_path(length, interval=0.1):
     x = np.arange(start=0, stop=length, step=interval)
-    return Path(x=x, y=np.random.normal(0, .1, size=np.size(x)))
+    return Path(x=x, y=np.random.normal(0, .01, size=np.size(x)))
 
 if __name__ == "__main__":
     path = circle_path(radius=10, interval=1, revolutions=.95, decay=0)
