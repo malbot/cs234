@@ -37,7 +37,7 @@ class SimpleDriver(object):
     tau = 0.01 # learning rate of the target networks
     keep_prob = .9
 
-    def __init__(self, save_dir="logs"):
+    def __init__(self, save_dir=None):
         """
         adds the placeholders that will be used by both the actor and critic
         actor_state: placeholder for states to feed to actor
@@ -47,6 +47,9 @@ class SimpleDriver(object):
         r: reward R, the reward for a single (s,a,s') tuple
         :return: 
         """
+
+        if save_dir is None:
+            save_dir = self.default_save_dir()
 
         print("Initializing {class_name} model".format(class_name=type(self).__name__))
 
@@ -82,6 +85,10 @@ class SimpleDriver(object):
                                                                   target_network_scope=self.a_target_scope)
             self.update_critic_target = self.update_target_network(learning_network_scope=self.c_scope,
                                                                    target_network_scope=self.c_target_scope)
+
+    @staticmethod
+    def default_save_dir():
+        return "logs"
 
     def critic(self, state, action, scope, keep_prob, reuse=False):
         """
@@ -640,6 +647,10 @@ class SimpleDriver(object):
         else:
             print("No model could be found")
 
+    @staticmethod
+    def get_car_model():
+        return CarModel()
+
     def test(self, sess):
         training_paths = [
             cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4),
@@ -655,8 +666,8 @@ class SimpleDriver(object):
             circle_path(radius=150, interval=.1, revolutions=.8, decay=0)
         ]
 
-        model = CarModel()
-        good_driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model, lookahead=5)
+        model = self.get_car_model()
+        good_driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model)
 
         learning_driver = self
         learning_driver.init(sess)
@@ -722,5 +733,5 @@ class SimpleDriver(object):
 
 if __name__ == "__main__":
     with tf.Session() as Session:
-        model = SimpleDriver()
-        model.test(sess=Session)
+        driver_model = SimpleDriver()
+        driver_model.test(sess=Session)

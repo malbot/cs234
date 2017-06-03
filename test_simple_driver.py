@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib as mpl
+mpl.use("Agg")
 from matplotlib import pyplot as plt
 
 from bar import Progbar
@@ -16,7 +18,7 @@ path = strait_path(200)
 # path = circle_path(radius=100, interval=.1, revolutions=.8, decay=0)
 model = CarModel()
 state = model.start_state(Ux=9, Uy=0, r=0, path=path)
-driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model, lookahead=5)
+driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model)
 bar = Progbar(target=int(path.length())+1)
 data = []
 t = 0
@@ -30,7 +32,7 @@ while not state.is_terminal(): # and t < max_t:
         },
         "kappa": state.kappa()
     })
-    if state.s > 1005:
+    if state.s > path.length():
         print(state)
     action = driver.get_action([state])[0]
     state, dx, dy, do = model(state=state, action=action, time=t_step)
@@ -40,7 +42,7 @@ print(state)
 
 records = model.get_records()
 animator = CarAnimation(animate_car=True)
-animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1, states=data)
+animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1, states=data, save_to="test")
 
 handles = []
 for name, points in records.items():

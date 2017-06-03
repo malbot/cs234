@@ -3,19 +3,18 @@ import numpy as np
 from drivers.action import Action
 from drivers.abstract_driver import AbstractDriver
 from drivers.state import State
-from models.car import CarModel
+from models.car2 import CarModel
 from models.gps import GPS
 from models.path import cospath
 
 
 class pidDriver(AbstractDriver):
-    def __init__(self, V, kp, x_la, car, lookahead=0):
+    def __init__(self, V, kp, x_la, car):
         super(AbstractDriver, self).__init__()
         self.V = V
         self.kp = kp
         self.x_la = x_la
         self.car = car
-        self.lookahead = lookahead
 
     def get_action(self, state_batch):
         actions = []

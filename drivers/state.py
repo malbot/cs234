@@ -55,6 +55,17 @@ class State():
             + self.kappa(s=[self.s + i*kappa_step_size for i in range(kappa_length)]).tolist()
         )
 
+    @staticmethod
+    def array_value_mapping():
+        return {
+            **{
+                v: i for i, v in zip(range(9), ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's'])
+            },
+            "remainder": 9,
+            "wf": np.asarray([10,11]),
+            "wr": np.asarray([12,13])
+        }
+
     def kappa(self, s=None):
         if s is None:
             s = self.s
