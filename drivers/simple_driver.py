@@ -491,7 +491,7 @@ class SimpleDriver(object):
                 training_tuples.append((
                     s.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size),
                     a.as_array(max_delta=car.max_del, max_t=car.max_t),
-                    s.reward(t_step=self.t_step),
+                    sp.reward(t_step=self.t_step),
                     sp.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)
                 ))
 
