@@ -57,14 +57,13 @@ class State():
 
     @staticmethod
     def array_value_mapping():
-        return {
-            **{
+        dictionary = {
                 v: i for i, v in zip(range(9), ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's'])
-            },
-            "remainder": 9,
-            "wf": np.asarray([10,11]),
-            "wr": np.asarray([12,13])
-        }
+            }
+        dictionary["remainder"] = 9
+        dictionary['wf'] = np.asarray([10,11])
+        dictionary['wr'] = np.asarray([12,13])
+        return dictionary
 
     def kappa(self, s=None):
         if s is None:
