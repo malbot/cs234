@@ -40,7 +40,7 @@ class CarAnimation():
             self.rear_wheels_plot.set_data(self.rear_wheels.x[:frame], self.rear_wheels.y[:frame])
             return self.front_wheels, self.rear_wheels,
 
-    def animate(self, front_wheels, rear_wheels, path, interval=200, states=None, save_to=None):
+    def animate(self, front_wheels, rear_wheels, path, interval=200, states=None, save_to=None, t_step=1):
         """
         animates the front/rear wheels along the path
         :param front_wheels: the PointSet that the front wheels follow
@@ -49,6 +49,7 @@ class CarAnimation():
         :param interval: the interval in miliseconds that each frame is played
         :param states:
         :param save_to: if none, will display animiate, if string, will save to that file (adding extension)
+        :param t_step: time step between states
         :return:
         """
         fig = plt.figure()
@@ -67,12 +68,11 @@ class CarAnimation():
         # time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
         # energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
         self.data_text = ax.text(1.01, 0.0, '', transform=ax.transAxes)
-        mpl.use('Agg')
-        ani = FuncAnimation(fig=fig, func=self, frames=len(front_wheels.x), interval=interval)
+        ani = FuncAnimation(fig=fig, func=self, frames=iter(range(0, len(front_wheels.x), 20)), interval=interval)
 
         if save_to is not None:
             mpl.verbose.set_level("helpful")
-            ani.save(filename="{file}.mp4".format(file=save_to), writer="avconv", codec="libx264")
+            ani.save(filename="{file}.mp4".format(file=save_to), writer="avconv", codec="libx264", fps=int(1/(t_step*20)))
         else:
             plt.show()
         plt.close()

@@ -75,12 +75,12 @@ class State():
         return abs(self.e) > self.e_max or self.remainder() <= 1e-2 or min(self.wr) < -1
 
     def reward(self, t_step=1):
-        worst_reward = -(1/t_step)*self.path.length()*1.1
+        worst_reward = -(1/t_step)*self.path.length()*2
         if abs(self.e) > self.e_max:
             return worst_reward
         elif min(self.wr) < -1:
             return worst_reward
-        return -1*t_step*self.s/self.path.length()
+        return -1*t_step*(self.path.length() - self.s)/self.path.length()
 
     def remainder(self):
         return self.path.length() - self.s
@@ -98,14 +98,17 @@ class State():
         return self.wy - np.sin(self.wo) * model.b
 
     def __str__(self):
-        return "[r={6:.4g}]: Ux = {0:.4g}, Uy = {1:.4g}, wf = {2}, wr={3}, e = {4:.4g}, s = {5:.4g}".format(
-            self.Ux,
-            self.Uy,
-            self.wf,
-            self.wr,
-            self.e,
-            self.s,
-            self.reward()
+        return "[r={r:.4g} ({x:.4g}, {y:.4g}, {o:.4g})]: Ux = {ux:.4g}, Uy = {uy:.4g}, wf = {wf}, wr={wr}, e = {e:.4g}, s = {s:.4g}".format(
+            ux=self.Ux,
+            uy=self.Uy,
+            wf=self.wf,
+            wr=self.wr,
+            e=self.e,
+            s=self.s,
+            r=self.reward(),
+            x=self.wx,
+            y=self.wy,
+            o=self.wo
         )
 
 if __name__ == "__main__":

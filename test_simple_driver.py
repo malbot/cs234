@@ -13,8 +13,8 @@ t_step = .001
 # path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
 # path = circle_path(radius=40, interval=.1, revolutions=1.5, decay=.6)
 # path = circle_path(radius=200, interval=.1, revolutions=.8, decay=0)
-path = strait_path(200)
-# path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
+# path = strait_path(200)
+path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
 # path = circle_path(radius=100, interval=.1, revolutions=.8, decay=0)
 model = CarModel()
 state = model.start_state(Ux=9, Uy=0, r=0, path=path)
@@ -42,7 +42,15 @@ print(state)
 
 records = model.get_records()
 animator = CarAnimation(animate_car=True)
-animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1, states=data, save_to="test")
+animator.animate(
+    front_wheels=records['front'],
+    rear_wheels=records['rear'],
+    path=path,
+    interval=1,
+    states=data,
+    save_to="test",
+    t_step=t_step
+)
 
 handles = []
 for name, points in records.items():

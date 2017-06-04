@@ -82,12 +82,14 @@ def cospath_decay(length, interval=0.1, y_scale=1, frequency=1, decay_amplitude=
     return Path(x, y)
 
 
-def circle_path(radius, interval=0.1, revolutions=1, decay = 0):
+def circle_path(radius, interval=0.1, revolutions=1, decay = 0, reverse_direction=False):
     """
     creates a circular path
     :param radius: the radius of the circle
     :param interval: the distance between points in the path
-    :param revolutions: the number of times to go around the circle
+    :param revolutions: float the number of times to go around the circle
+    :param decay:
+    :param reverse_direction:
     :return:
     """
     x = []
@@ -95,7 +97,8 @@ def circle_path(radius, interval=0.1, revolutions=1, decay = 0):
     angle_interval = np.arccos((2*(radius**2) - interval **2) / (2*radius*radius))
     for angle in np.arange(start=0, step=angle_interval, stop=2*np.pi*revolutions - angle_interval):
         r = radius - radius * decay * angle/(2*np.pi)
-        x.append(radius - np.cos(angle)*r)
+        x_value = radius - np.cos(angle)*r
+        x.append(x_value if not reverse_direction else -1*x_value)
         y.append(np.sin(angle)*r)
 
     return Path(x=y, y=x)
