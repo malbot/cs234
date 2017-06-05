@@ -75,9 +75,9 @@ class State():
 
     def reward(self, t_step=1, previous_state=None, previous_action=None, max_path_length=1000):
         if abs(self.e) > self.e_max or min(self.wr) < -1:
-            return -1*max_path_length/t_step
+            return -1
 
-        return -1*self.remainder()/self.path.length()
+        return int(self.remainder() <= 1)
         # if previous_action is not None and previous_state is not None:
         #     if self.s < previous_state.s:
         #         return -10*abs(self.s - previous_state.s) / t_step

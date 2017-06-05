@@ -23,7 +23,7 @@ class SimpleDriver(object):
     critic_hidden_length = 100
     actor_hidden_length = 100
     gamma = .999  # reward discount
-    lr = 1e-5
+    lr = 1e-3
     clip_norm = 10
     c_scope = "v"
     c_target_scope = "v_target"
@@ -703,7 +703,7 @@ class SimpleDriver(object):
         self.load_model(sess)
         print("pretrain")
         learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
-                                            num_episodes=len(training_paths), reiterate=100)
+                                            num_episodes=len(training_paths), reiterate=400)
         save_path, r = self.save_model(
             session=sess,
             paths=training_paths,

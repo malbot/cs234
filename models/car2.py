@@ -107,7 +107,8 @@ class CarModel():
 
         delta = self.max_del*np.sign(action.delta) if abs(action.delta) > self.max_del else action.delta
         tf = 0 #self.max_t * np.sign(action.tf) if abs(action.tf) > self.max_t else action.tf
-        tr = self.max_t * np.sign(action.tr) if abs(action.tr) > self.max_t else action.tr
+        # tr = self.max_t * np.sign(action.tr) if abs(action.tr) > self.max_t else action.tr
+        tr = min(max(action.tr, 0), self.max_t)
 
         Uxr = np.array([
             state.Ux - self.d/2*state.r,

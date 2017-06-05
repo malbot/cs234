@@ -9,7 +9,7 @@ from models.path import Path
 from models.gps import PointSet
 
 
-class CarAnimation():
+class CarAnimation(object):
 
     def __init__(self, animate_car = False):
         self.animate_car = animate_car

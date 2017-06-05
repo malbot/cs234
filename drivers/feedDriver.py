@@ -246,4 +246,5 @@ class FeedDriver(SimpleDriver):
 if __name__ == "__main__":
     with tf.Session() as Session:
         model = FeedDriver(FeedDriver.get_car_model())
-        model.test_critic(sess=Session)
+        model.test(sess=Session)
+        
