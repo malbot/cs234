@@ -73,13 +73,18 @@ class State():
     def is_terminal(self):
         return abs(self.e) > self.e_max or self.remainder() <= 1e-2 or min(self.wr) < -1
 
-    def reward(self, t_step=1):
-        worst_reward = -(1/t_step)*self.path.length()*2
-        if abs(self.e) > self.e_max:
-            return worst_reward
-        elif min(self.wr) < -1:
-            return worst_reward
-        return -1*t_step*(self.path.length() - self.s)/self.path.length()
+    def reward(self, t_step=1, previous_state=None, previous_action=None, max_path_length=1000):
+        if abs(self.e) > self.e_max or min(self.wr) < -1:
+            return -1*max_path_length/t_step
+
+        return -1*self.remainder()/self.path.length()
+        # if previous_action is not None and previous_state is not None:
+        #     if self.s < previous_state.s:
+        #         return -10*abs(self.s - previous_state.s) / t_step
+        #     else:
+        #         return (self.s - previous_state.s) / t_step
+        # else:
+        #     return self.Ux
 
     def remainder(self):
         return self.path.length() - self.s

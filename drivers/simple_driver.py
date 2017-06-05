@@ -30,7 +30,7 @@ class SimpleDriver(object):
     a_scope = "pi"
     a_target_scope = "pi_target"
     t_step = 0.01
-    batch_size = 100
+    batch_size = 130
     random_action_stddev = 0.05  # stddev of percentage of noise to add to actions
     initial_velocity = 10
     alpha = 0 #0.01
@@ -218,7 +218,7 @@ class SimpleDriver(object):
         :param r: rewards
         :return: 0d tensor of average loss over all batches
         """
-        return tf.reduce_mean(tf.abs(r + self.gamma*q_target - q))
+        return tf.reduce_mean(tf.square(r + self.gamma*q_target - q))
 
     def actor_loss(self, pi, q_scope):
         """
@@ -443,12 +443,13 @@ class SimpleDriver(object):
                     ("actor norm", actor_norm)
                 ])
                 a = self.get_noisy_action(session, [s.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)])[0]
+                action = Action.get_action(a, max_delta=car.max_del, max_t=car.max_t)
                 sp, _, _, _ = car(
                     state=s,
-                    action=Action.get_action(a, max_delta=car.max_del, max_t=car.max_t),
+                    action=action,
                     time=self.t_step
                 )
-                r = sp.reward(t_step=self.t_step)
+                r = sp.reward(t_step=self.t_step, previous_state=s, previous_action=action)
                 R.append((
                     s.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size),
                     a,
@@ -490,7 +491,7 @@ class SimpleDriver(object):
         )
 
 
-    def run_pretrain(self, session, car, other_driver, paths, num_episodes, reiterate):
+    def run_pretrain(self, session, car, other_driver, paths, num_episodes, reiterate, train_only_critic=False):
         """
         
         :param session: 
@@ -499,6 +500,7 @@ class SimpleDriver(object):
         :param paths: 
         :param num_episodes: 
         :param reiterate: 
+        :param train_only_critic:
         :return: 
         """
         training_tuples = []
@@ -515,7 +517,7 @@ class SimpleDriver(object):
                 training_tuples.append((
                     s.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size),
                     a.as_array(max_delta=car.max_del, max_t=car.max_t),
-                    sp.reward(t_step=self.t_step),
+                    sp.reward(t_step=self.t_step, previous_action=a, previous_state=s),
                     sp.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)
                 ))
 
@@ -538,7 +540,9 @@ class SimpleDriver(object):
                 actions = np.array([a for s, a, r, sp in batch])
                 rewards = np.array([r for s, a, r, sp in batch])
                 state_primes = np.array([sp for s, a, r, sp in batch])
-                actor_loss, a = self.pretrain_actor(session=session, state=states, action=actions)
+                if not train_only_critic:
+                    actor_loss, a = self.pretrain_actor(session=session, state=states, action=actions)
+                    loss.append(actor_loss*.01 + .99*loss[-1])
                 c_loss, mean = self.train_critic(
                     session=session,
                     state=states,
@@ -548,12 +552,11 @@ class SimpleDriver(object):
                 )
                 critic_loss = c_loss*.01 + .99*critic_loss
                 self.update_targets(session=session)
-                loss.append(actor_loss*.01 + .99*loss[-1])
                 bar.update(
                     t*len(training_tuples) + i + len(batch),
                     exact=[("actor loss", loss[-1]), ("critic loss", critic_loss), ("critic norm", mean), ("i", i)]
                 )
-        return loss
+        return loss, critic_loss
 
     def test_model(self, session, path, car):
         """
@@ -567,11 +570,11 @@ class SimpleDriver(object):
         state = car.start_state(Ux=self.initial_velocity, Uy=0, r=0, path=path)
         bar = Progbar(target=int(path.length())+1)
         t = 0.0
-        r = 0.0
         ux = []
         actions = []
         states = []
         q_values = []
+        rewards = []
         while not state.is_terminal() and t < 1.5*path.length()*self.initial_velocity:
             t += self.t_step
             s = np.array(state.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size))
@@ -584,20 +587,21 @@ class SimpleDriver(object):
             states.append(state)
             actions.append(action)
 
-            state, _, _, _ = car(state=state, action=action, time=self.t_step)
-            r += state.reward(t_step=self.t_step)
+            state_p, _, _, _ = car(state=state, action=action, time=self.t_step)
+            rewards.append(state_p.reward(t_step=self.t_step, previous_state=state, previous_action=action))
+            state = state_p
             ux.append(state.Ux)
             bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
         states.append(state)
         records = car.get_records()
-        return r, np.mean(ux), state.s, records, states, actions, q_values
+        return np.sum(rewards), np.mean(ux), state.s, records, states, actions, q_values, rewards
 
     def save_model(self, session, paths, car):
         summary = ""
         results = []
         reward = []
         for path, i in zip(paths, range(1, len(paths)+1)):
-            r, ux, s, record, states, actions, q_values = self.test_model(session=session, path=path, car=car)
+            r, ux, s, record, states, actions, q_values, rewards = self.test_model(session=session, path=path, car=car)
             summary += "Path {i}, r = {r}, mean speed = {ux}, total distance = {s}".format(
                 i=i,
                 ux=ux,
@@ -614,6 +618,7 @@ class SimpleDriver(object):
                 record,
                 states,
                 actions,
+                rewards,
                 path,
                 q_values,
                 i
@@ -630,7 +635,7 @@ class SimpleDriver(object):
         animator = CarAnimation(animate_car=True)
         # animator.animate(front_wheels=records['front'], rear_wheels=records['rear'], path=path, interval=1)
         print("Model saved to in directory {path}".format(path=save_path))
-        for result, record, states, actions, path, q_values, i in results:
+        for result, record, states, actions, rewards, path, q_values, i in results:
             animator.animate(
                 front_wheels=record['front'],
                 rear_wheels=record['rear'],
@@ -641,11 +646,11 @@ class SimpleDriver(object):
             with open("{path}/path_{i}.txt".format(path=save_path, i=i), "w") as file:
                 json.dump(result, file)
             with open("{path}/states_{i}.txt".format(path=save_path, i=i), "w") as file:
-                for s in states:
-                    file.write("{s}\n".format(s=s))
+                for t, s in zip(range(len(states)), states):
+                    file.write("{t:.3g} || {s}\n".format(s=s, t=t))
             with open("{path}/action_{i}.txt".format(path=save_path, i=i), "w") as file:
-                for a, q in zip(actions, q_values):
-                    file.write("{a} => {q}\n".format(a=a, q=q))
+                for t, a, q, r in zip(range(len(actions)), actions, q_values, rewards):
+                    file.write("{t:.3g} || {a} => {q}, {r}\n".format(a=a, q=q, r=r, t=t))
 
         return save_path, np.mean(reward)
 
@@ -677,16 +682,16 @@ class SimpleDriver(object):
 
     def test(self, sess):
         training_paths = [
-            cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4),
+            # cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4),
             circle_path(radius=100, interval=.1, revolutions=.5, decay=0),
-            cospath_decay(length=200, y_scale=-10, frequency=2, decay_amplitude=0, decay_frequency=0),
+            # cospath_decay(length=200, y_scale=-10, frequency=2, decay_amplitude=0, decay_frequency=0),
             circle_path(radius=200, interval=.1, revolutions=.5, decay=0, reverse_direction=True),
             strait_path(length=100)
         ]
         test_paths = training_paths + [
-            cospath_decay(length=100, y_scale=-10, frequency=.5, decay_amplitude=0, decay_frequency=1.0e-4),
+            # cospath_decay(length=100, y_scale=-10, frequency=.5, decay_amplitude=0, decay_frequency=1.0e-4),
             circle_path(radius=50, interval=.1, revolutions=.5, decay=0),
-            cospath_decay(length=200, y_scale=-10, frequency=3, decay_amplitude=0, decay_frequency=0),
+            # cospath_decay(length=200, y_scale=-10, frequency=3, decay_amplitude=0, decay_frequency=0),
             circle_path(radius=150, interval=.1, revolutions=.5, decay=0)
         ]
 
@@ -697,8 +702,8 @@ class SimpleDriver(object):
         learning_driver.init(sess)
         self.load_model(sess)
         print("pretrain")
-        loss = learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
-                                            num_episodes=len(training_paths), reiterate=400)
+        learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
+                                            num_episodes=len(training_paths), reiterate=100)
         save_path, r = self.save_model(
             session=sess,
             paths=training_paths,
@@ -726,7 +731,7 @@ class SimpleDriver(object):
         print("testing")
         rewards = []
         for path in test_paths:
-            reward, Ux, s, records, states, actions, q_values = learning_driver.test_model(session=sess, path=path, car=model)
+            reward, Ux, s, records, states, actions, q_values, _ = learning_driver.test_model(session=sess, path=path, car=model)
 
             model.reset_record()
             state = model.start_state(Ux=learning_driver.initial_velocity, Uy=0, r=0, path=path)
@@ -737,8 +742,9 @@ class SimpleDriver(object):
             while not state.is_terminal() and t < 1.5 * path.length() * learning_driver.initial_velocity:
                 t += learning_driver.t_step
                 action = good_driver.get_action([state])[0]
-                state, _, _, _ = model(state=state, action=action, time=learning_driver.t_step)
-                r += state.reward(t_step=learning_driver.t_step)
+                state_p, _, _, _ = model(state=state, action=action, time=learning_driver.t_step)
+                r += state_p.reward(t_step=learning_driver.t_step, previous_action=action, previous_state=state)
+                state = state_p
                 ux.append(state.Ux)
                 bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
             rewards.append((reward, r, Ux, np.mean(ux), s, state.s))
@@ -754,8 +760,70 @@ class SimpleDriver(object):
                 nn_s=nn_s
             ))
 
+    def test_critic(self, sess):
+        training_paths = [
+            # cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4),
+            circle_path(radius=100, interval=.1, revolutions=.5, decay=0),
+            # cospath_decay(length=200, y_scale=-10, frequency=2, decay_amplitude=0, decay_frequency=0),
+            circle_path(radius=200, interval=.1, revolutions=.5, decay=0, reverse_direction=True),
+            strait_path(length=100)
+        ]
+        test_paths = training_paths + [
+            # cospath_decay(length=100, y_scale=-10, frequency=.5, decay_amplitude=0, decay_frequency=1.0e-4),
+            circle_path(radius=50, interval=.1, revolutions=.5, decay=0),
+            # cospath_decay(length=200, y_scale=-10, frequency=3, decay_amplitude=0, decay_frequency=0),
+            circle_path(radius=150, interval=.1, revolutions=.5, decay=0)
+        ]
+
+        model = self.get_car_model()
+        good_driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model)
+
+        learning_driver = self
+        learning_driver.init(sess)
+        loss = []
+        error_rate = []
+        for i in range(100):
+            _, c_loss = learning_driver.run_pretrain(
+                session=sess,
+                car=model,
+                other_driver=good_driver,
+                paths=training_paths,
+                num_episodes=len(training_paths),
+                reiterate=100,
+                train_only_critic=True
+            )
+            loss.append(c_loss)
+
+            for path in test_paths:
+                car = self.get_car_model()
+                s = car.start_state(Ux=10, Uy=0, r=0, path=path)
+                rewards = []
+                states = [s]
+                actions = []
+                quality = []
+                while not s.is_terminal():
+                    a = good_driver.get_action(state_batch=[s])[0]
+                    sp, _, _, _  = car(state=s, action=a, time=self.t_step)
+                    states.append(sp)
+                    actions.append(a)
+                    rewards.append(sp.reward(t_step=self.t_step, previous_action=a, previous_state=s))
+                    quality.append(self.get_q(
+                        session=sess,
+                        state=np.expand_dims(s.as_array(kappa_step_size=self.kappa_step_size, kappa_length=self.kappa_length), axis=0),
+                        action=np.expand_dims(a.as_array(max_delta=car.max_del, max_t=car.max_t), axis=0)
+                    ))
+                    s = sp
+                discounted_rewards = [0.0]
+                for r in rewards[::-1]:
+                    discounted_rewards.append(discounted_rewards[-1]*self.gamma + r)
+                discounted_rewards = discounted_rewards[::-1][:-1]
+                error_rate.append(np.mean([abs(r-q)/max(abs(r), abs(q)) for r, q in zip(rewards, quality)]))
+            print("Loss = {l}".format(l=loss[-10::]))
+            print("error = {e}".format(e=error_rate[-10::]))
+
+
 
 if __name__ == "__main__":
     with tf.Session() as Session:
         driver_model = SimpleDriver()
-        driver_model.test(sess=Session)
+        driver_model.test_critic(sess=Session)
