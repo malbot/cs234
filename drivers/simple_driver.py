@@ -22,11 +22,11 @@ class SimpleDriver(object):
     kappa_step_size = .5
     critic_hidden_length = 100
     actor_hidden_length = 100
-    gamma = .999  # reward discount
+    gamma = .9  # reward discount
     lr = 1e-3
     clip_norm = 10
-    c_scope = "v"
-    c_target_scope = "v_target"
+    c_scope = "q"
+    c_target_scope = "q_target"
     a_scope = "pi"
     a_target_scope = "pi_target"
     t_step = 0.01
@@ -36,6 +36,10 @@ class SimpleDriver(object):
     alpha = 0 #0.01
     tau = 0.01 # learning rate of the target networks
     keep_prob = .9
+    pretrain_iterations = 1000
+    train_epochs = 10
+    train_episodes = 100
+    train_buffer = 100
 
     def __init__(self, save_dir=None):
         """
@@ -707,23 +711,23 @@ class SimpleDriver(object):
         if not loaded:
             print("pretrain")
             learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
-                                                num_episodes=len(training_paths), reiterate=800)
-            print("Post pre-training had average reward of {r}".format(r=r))
+                                                num_episodes=len(training_paths), reiterate=self.pretrain_iterations)
             save_path, r = self.save_model(
                 session=sess,
                 paths=test_paths,
                 car=model
             )
+            print("Post pre-training had average reward of {r}".format(r=r))
         else:
             print("Loaded older model, not pretraining")
         print("training")
-        for i in range(10):
+        for i in range(self.train_epochs):
             learning_driver.run_training(
                 session=sess,
                 car=model,
                 paths=training_paths,
-                episodes=100,
-                replay_buffer_size=100,
+                episodes=self.train_episodes,
+                replay_buffer_size=self.train_buffer,
                 replay=1
             )
             save_path, r = self.save_model(

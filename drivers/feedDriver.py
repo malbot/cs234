@@ -10,6 +10,9 @@ class FeedDriver(SimpleDriver):
     rnn_state_size = 50
     kappa_step_size = .25
     torque_nn_layers = 3
+    pretrain_iterations = 100
+    train_episodes = 50
+    train_epochs = 20
 
     def __init__(self, car_model, save_dir=None):
         self.car = car_model
@@ -75,8 +78,8 @@ class FeedDriver(SimpleDriver):
                     weights_initializer=layers.xavier_initializer(),
                     scope="bw_init_state_h"
                 ))
-            fw_cell = rnn.BasicLSTMCell(self.rnn_state_size, reuse=reuse)
-            bw_cell = rnn.BasicLSTMCell(self.rnn_state_size, reuse=reuse)
+            fw_cell = rnn.BasicLSTMCell(self.rnn_state_size)
+            bw_cell = rnn.BasicLSTMCell(self.rnn_state_size)
             inputs = [
                 tf.reduce_sum(t, axis=1)
                 for t
@@ -142,32 +145,9 @@ class FeedDriver(SimpleDriver):
             # torque = (V - Ux)*t_factor
         return tf.concat([delta, torque, torque], axis=1)
 
-    # def critic(self, scope, state, action, keep_prob, reuse=False):
-    #     """
-    #torque_nn_layers
-    #     :param scope:
-    #     :param state:
-    #     :param action
-    #     :param keep_prob:
-    #     :param reuse:
-    #     :return:
-    #     """
-    #     v = tf.concat([state, action], axis=1)
-    #     with tf.variable_scope(scope):
-    #         for i in range(10):
-    #             v = layers.fully_connected(
-    #                 inputs=v,
-    #                 biases_initializer=layers.xavier_initializer(),
-    #                 num_outputs=self.rnn_state_size if i < 9 else 1,
-    #                 reuse=reuse,
-    #                 weights_initializer=layers.xavier_initializer(),
-    #                 scope="fully_connected_layer_{0}".format(i)
-    #             )
-    #     return v
-    #
     def critic(self, scope, state, action, keep_prob, reuse=False):
         """
-
+    torque_nn_layers
         :param scope:
         :param state:
         :param action
@@ -175,79 +155,110 @@ class FeedDriver(SimpleDriver):
         :param reuse:
         :return:
         """
-        path = tf.concat([
-            tf.expand_dims(state[:, State.size():], axis=2),
-            tf.expand_dims(
-                tf.tile(
-                    input=tf.expand_dims(
-                        tf.constant(
-                            np.arange(start=0, stop=self.kappa_step_size * self.kappa_length,
-                                      step=self.kappa_step_size),
-                            dtype=tf.float32
-                        ),
-                        axis=0),
-                    multiples=[tf.shape(state)[0], 1]
-                ),
-                axis=2)
-        ],
-            axis=2
-        )
-        state_steering = tf.concat([
-            state[:, :State.size()],
-            tf.expand_dims(action[:,1], axis=1)
-        ], axis=1)
-        state_torque = tf.concat([
-            tf.expand_dims(state[:, State.array_value_mapping()['Ux']], axis=1),
-            tf.expand_dims(state[:, State.array_value_mapping()['delta_psi']], axis=1),
-            tf.expand_dims(state[:, State.array_value_mapping()['e']], axis=1),
-            state[:, State.size():],
-            action[:,1:]
-        ], axis=1)
+        mapping = State.array_value_mapping()
         with tf.variable_scope(scope, reuse=reuse):
-            conv1 = layers.conv2d(inputs=path, num_outputs=32, kernel_size=[16], stride=2, padding="SAME",
-                                  scope="conv1")
-            conv2 = layers.conv2d(inputs=conv1, num_outputs=32, kernel_size=[8], stride=2, padding="SAME",
-                                  scope="conv2")
-            path_convolution = layers.flatten(conv2)
-            linear1 = layers.fully_connected(
-                inputs=tf.concat([path_convolution, state_steering], axis=1),
-                biases_initializer=layers.xavier_initializer(),
-                num_outputs=self.critic_hidden_length,
-                reuse=reuse,
+            values = tf.stack([
+                state[:, mapping['s']],
+                state[:, mapping['e']],
+                state[:, mapping['Ux']],
+                state[:, mapping['Uy']],
+                state[:, mapping['r']],
+                state[:, mapping['delta_psi']],
+                action[:, 0],
+                state[:, State.size()]
+            ], axis=1)
+
+            r = layers.fully_connected(
+                inputs=values,
                 weights_initializer=layers.xavier_initializer(),
-                activation_fn=tf.tanh,
-                scope="connected_1"
-            )
-            steering_quality = layers.fully_connected(
-                inputs=linear1,
                 biases_initializer=layers.xavier_initializer(),
                 num_outputs=1,
-                reuse=reuse,
-                weights_initializer=layers.xavier_initializer(),
-                scope="connected_2"
             )
-
-            v = tf.concat([path_convolution, state_torque], axis=1)
-            for i in range(self.torque_nn_layers):
-                v = layers.fully_connected(
-                    inputs=v,
-                    biases_initializer=layers.xavier_initializer(),
-                    num_outputs=self.rnn_state_size if i < self.torque_nn_layers - 1 else 1,
-                    reuse=reuse,
-                    weights_initializer=layers.xavier_initializer(),
-                    scope="fully_connected_layer_{0}".format(i)
-                )
-
-            q = layers.fully_connected(
-                inputs=tf.concat(steering_quality, v, axis=1),
-                biases_initializer=layers.xavier_initializer(),
-                num_outputs=1,
-                reuse=reuse,
-                weights_initializer=layers.xavier_initializer(),
-                scope="final_quality"
-            )
-
-            return q
+            return r
+    #
+    # def critic(self, scope, state, action, keep_prob, reuse=False):
+    #     """
+    #
+    #     :param scope:
+    #     :param state:
+    #     :param action
+    #     :param keep_prob:
+    #     :param reuse:
+    #     :return:
+    #     """
+    #     path = tf.concat([
+    #         tf.expand_dims(state[:, State.size():], axis=2),
+    #         tf.expand_dims(
+    #             tf.tile(
+    #                 input=tf.expand_dims(
+    #                     tf.constant(
+    #                         np.arange(start=0, stop=self.kappa_step_size * self.kappa_length,
+    #                                   step=self.kappa_step_size),
+    #                         dtype=tf.float32
+    #                     ),
+    #                     axis=0),
+    #                 multiples=[tf.shape(state)[0], 1]
+    #             ),
+    #             axis=2)
+    #     ],
+    #         axis=2
+    #     )
+    #     state_steering = tf.concat([
+    #         state[:, :State.size()],
+    #         tf.expand_dims(action[:,1], axis=1)
+    #     ], axis=1)
+    #     state_torque = tf.concat([
+    #         tf.expand_dims(state[:, State.array_value_mapping()['Ux']], axis=1),
+    #         tf.expand_dims(state[:, State.array_value_mapping()['delta_psi']], axis=1),
+    #         tf.expand_dims(state[:, State.array_value_mapping()['e']], axis=1),
+    #         state[:, State.size():],
+    #         action[:,1:]
+    #     ], axis=1)
+    #     with tf.variable_scope(scope, reuse=reuse):
+    #         conv1 = layers.conv2d(inputs=path, num_outputs=32, kernel_size=[16], stride=2, padding="SAME",
+    #                               scope="conv1")
+    #         conv2 = layers.conv2d(inputs=conv1, num_outputs=32, kernel_size=[8], stride=2, padding="SAME",
+    #                               scope="conv2")
+    #         path_convolution = layers.flatten(conv2)
+    #         linear1 = layers.fully_connected(
+    #             inputs=tf.concat([path_convolution, state_steering], axis=1),
+    #             biases_initializer=layers.xavier_initializer(),
+    #             num_outputs=self.critic_hidden_length,
+    #             reuse=reuse,
+    #             weights_initializer=layers.xavier_initializer(),
+    #             activation_fn=tf.tanh,
+    #             scope="connected_1"
+    #         )
+    #         steering_quality = layers.fully_connected(
+    #             inputs=linear1,
+    #             biases_initializer=layers.xavier_initializer(),
+    #             num_outputs=1,
+    #             reuse=reuse,
+    #             weights_initializer=layers.xavier_initializer(),
+    #             scope="connected_2"
+    #         )
+    #
+    #         v = tf.concat([path_convolution, state_torque], axis=1)
+    #         for i in range(self.torque_nn_layers):
+    #             v = layers.fully_connected(
+    #                 inputs=v,
+    #                 biases_initializer=layers.xavier_initializer(),
+    #                 num_outputs=self.rnn_state_size if i < self.torque_nn_layers - 1 else 1,
+    #                 reuse=reuse,
+    #                 weights_initializer=layers.xavier_initializer(),
+    #                 scope="fully_connected_layer_{0}".format(i)
+    #             )
+    #
+    #         q = layers.fully_connected(
+    #             inputs=tf.concat(steering_quality, v, axis=1),
+    #             biases_initializer=layers.xavier_initializer(),
+    #             num_outputs=1,
+    #             reuse=reuse,
+    #             weights_initializer=layers.xavier_initializer(),
+    #             scope="final_quality"
+    #         )
+    #
+    #         return q
 
 
 if __name__ == "__main__":

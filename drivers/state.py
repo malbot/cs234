@@ -2,8 +2,17 @@ import numpy as np
 
 from models.path import cospath_decay
 
+class RewardTypes():
+    ERROR = "error"  # reward is inversely proportional to error from road
+    DISTANCE = "distance"  # reward is proportional to distance traveled
+    NEGATIVE_DISTANCE = "neg_distance"  # negative reward is inversely proportional to distance traveled (ie, longer distance is less negative reward)
+    SPEED = "speed"  # reward is proportional to speed
 
 class State(object):
+
+    reward_type = RewardTypes.ERROR
+    negatively_reward_crash = False
+    crash_cost = -100
     reward_increments = 5
 
     def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=10, data=None, t=0):
@@ -76,10 +85,23 @@ class State(object):
         return abs(self.e) > self.e_max or self.remainder() <= 1e-2 or min(self.wr) < -1
 
     def reward(self, t_step=1, previous_state=None, previous_action=None, max_path_length=1000):
+
+        if (abs(self.e) > self.e_max or min(self.wr) < -1) and self.negatively_reward_crash:
+            return self.crash_cost
+
+        if self.reward_type == RewardTypes.ERROR:
+            return  self.e_max -1*abs(self.e)
+        elif self.reward_type == RewardTypes.DISTANCE:
+            return self.s
+        elif self.reward_type == RewardTypes.NEGATIVE_DISTANCE:
+            return self.remainder()*-1
+        elif self.reward_type == RewardTypes.SPEED:
+            return (self.s - previous_state.s)/t_step
+
+        raise ValueError("Reward type not recognized: {0}".format(self.reward_type))
         # if abs(self.e) > self.e_max or min(self.wr) < -1:
         #     return -100
 
-        return  self.e_max -1*abs(self.e)
         # if previous_action is not None and previous_state is not None and self.remainder() > 1:
         #     return int(self.s >= self.reward_increments > previous_state.s)
         # else:
