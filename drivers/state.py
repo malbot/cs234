@@ -3,9 +3,10 @@ import numpy as np
 from models.path import cospath_decay
 
 
-class State():
+class State(object):
+    reward_increments = 5
 
-    def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=5, data=None):
+    def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=10, data=None, t=0):
         """
         :param Ux:
         :param Uy:
@@ -33,6 +34,7 @@ class State():
         self.s = s
         self.e_max = e_max
         self.data = data if data is not None else {}
+        self.time = t
 
     @staticmethod
     def size():
@@ -74,17 +76,14 @@ class State():
         return abs(self.e) > self.e_max or self.remainder() <= 1e-2 or min(self.wr) < -1
 
     def reward(self, t_step=1, previous_state=None, previous_action=None, max_path_length=1000):
-        if abs(self.e) > self.e_max or min(self.wr) < -1:
-            return -1
+        # if abs(self.e) > self.e_max or min(self.wr) < -1:
+        #     return -100
 
-        return int(self.remainder() <= 1)
-        # if previous_action is not None and previous_state is not None:
-        #     if self.s < previous_state.s:
-        #         return -10*abs(self.s - previous_state.s) / t_step
-        #     else:
-        #         return (self.s - previous_state.s) / t_step
+        return  self.e_max -1*abs(self.e)
+        # if previous_action is not None and previous_state is not None and self.remainder() > 1:
+        #     return int(self.s >= self.reward_increments > previous_state.s)
         # else:
-        #     return self.Ux
+        #     return int(self.remainder() <= 1)
 
     def remainder(self):
         return self.path.length() - self.s

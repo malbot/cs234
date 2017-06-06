@@ -14,7 +14,7 @@ class CarModel():
     vehicle model that calculates delta_psi, e, s directly from its position and the location of the path
     """
 
-    def __init__(self, mass=1650, tyre_model=TireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re=0.34, Jw=1.2, make_record=True, max_t=2000, max_del=np.pi/3):
+    def __init__(self, mass=1650, tyre_model=TireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re=0.34, Jw=1.2, make_record=True, max_t=500, max_del=np.pi/3):
         """
         Initializes the car model
         :param mass: mass of car
@@ -206,6 +206,7 @@ class CarModel():
                 s=s,
                 delta_psi=delta_psi,
                 e_max=state.e_max,
+                t=state.time + time,
                 data={
                     "u_xr": Uxr,
                     "u_yr": Uyr,

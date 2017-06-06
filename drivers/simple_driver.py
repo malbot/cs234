@@ -31,7 +31,7 @@ class SimpleDriver(object):
     a_target_scope = "pi_target"
     t_step = 0.01
     batch_size = 130
-    random_action_stddev = 0.05  # stddev of percentage of noise to add to actions
+    random_action_stddev = 0.005  # stddev of percentage of noise to add to actions
     initial_velocity = 10
     alpha = 0 #0.01
     tau = 0.01 # learning rate of the target networks
@@ -643,8 +643,8 @@ class SimpleDriver(object):
                 save_to="{path}/animation_{i}".format(path=save_path, i=i),
                 t_step=self.t_step
             )
-            with open("{path}/path_{i}.txt".format(path=save_path, i=i), "w") as file:
-                json.dump(result, file)
+            # with open("{path}/path_{i}.txt".format(path=save_path, i=i), "w") as file:
+            #     json.dump(result, file)
             with open("{path}/states_{i}.txt".format(path=save_path, i=i), "w") as file:
                 for t, s in zip(range(len(states)), states):
                     file.write("{t:.3g} || {s}\n".format(s=s, t=t))
@@ -671,10 +671,13 @@ class SimpleDriver(object):
             try:
                 saver.restore(session, "{path}/model.ckpt".format(path=best_model_path))
                 print("Loaded model from {path}".format(path=best_model_path))
+                return True
             except:
                 print("Unable to load model from {path}".format(path=best_model_path))
+                return False
         else:
             print("No model could be found")
+            return False
 
     @staticmethod
     def get_car_model():
@@ -700,16 +703,19 @@ class SimpleDriver(object):
 
         learning_driver = self
         learning_driver.init(sess)
-        self.load_model(sess)
-        print("pretrain")
-        learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
-                                            num_episodes=len(training_paths), reiterate=400)
-        save_path, r = self.save_model(
-            session=sess,
-            paths=training_paths,
-            car=model
-        )
-        print("Post pre-training had average reward of {r}".format(r=r))
+        loaded = self.load_model(sess)
+        if not loaded:
+            print("pretrain")
+            learning_driver.run_pretrain(session=sess, car=model, other_driver=good_driver, paths=training_paths,
+                                                num_episodes=len(training_paths), reiterate=800)
+            print("Post pre-training had average reward of {r}".format(r=r))
+            save_path, r = self.save_model(
+                session=sess,
+                paths=test_paths,
+                car=model
+            )
+        else:
+            print("Loaded older model, not pretraining")
         print("training")
         for i in range(10):
             learning_driver.run_training(
@@ -722,7 +728,7 @@ class SimpleDriver(object):
             )
             save_path, r = self.save_model(
                 session=sess,
-                paths=training_paths,
+                paths=test_paths,
                 car=model
             )
             print("Epoc {i} had average reward of {r}".format(i=i, r=r))
