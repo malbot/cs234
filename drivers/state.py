@@ -11,8 +11,8 @@ class RewardTypes():
 class State(object):
 
     reward_type = RewardTypes.ERROR
-    negatively_reward_crash = False
-    crash_cost = -100
+    negatively_reward_crash = True
+    crash_cost = -1
     reward_increments = 5
 
     def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=10, data=None, t=0):
@@ -90,7 +90,7 @@ class State(object):
             return self.crash_cost
 
         if self.reward_type == RewardTypes.ERROR:
-            return  self.e_max -1*abs(self.e)
+            return  (self.e_max -1*abs(self.e))/self.e_max
         elif self.reward_type == RewardTypes.DISTANCE:
             return self.s
         elif self.reward_type == RewardTypes.NEGATIVE_DISTANCE:
