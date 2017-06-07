@@ -11,7 +11,7 @@ class RewardTypes():
 
 class State(object):
 
-    reward_type = RewardTypes.ERROR
+    reward_type = RewardTypes.NEGATIVE_ERROR
     negatively_reward_crash = True
     crash_cost = -1
     reward_increments = 5
@@ -92,7 +92,7 @@ class State(object):
 
         if self.reward_type == RewardTypes.ERROR:
             return  (self.e_max -1*abs(self.e))/self.e_max
-        elif self.reward_type == RewardTypes.ERROR:
+        elif self.reward_type == RewardTypes.NEGATIVE_ERROR:
             return  -1*abs(self.e)/self.e_max
         elif self.reward_type == RewardTypes.DISTANCE:
             return self.s
