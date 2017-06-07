@@ -6,9 +6,9 @@ from drivers.simple_driver import SimpleDriver
 from drivers.state import State
 
 class FeedDriver(SimpleDriver):
-    kappa_length = 100
+    kappa_length = 3
     rnn_state_size = 50
-    kappa_step_size = .25
+    kappa_step_size = 1
     torque_nn_layers = 3
     pretrain_iterations = 100
     train_episodes = 50
@@ -97,8 +97,8 @@ class FeedDriver(SimpleDriver):
 
             val = layers.fully_connected(
                 inputs=path_kappa,
-                weights_initializer=layers.xavier_initializer(),
-                biases_initializer=layers.xavier_initializer(),
+                weights_initializer=tf.constant_initializer(1.0/self.kappa_length),
+                biases_initializer=tf.constant_initializer(0),
                 num_outputs=3
             )
             kappa = tf.expand_dims(

@@ -4,6 +4,7 @@ from models.path import cospath_decay
 
 class RewardTypes():
     ERROR = "error"  # reward is inversely proportional to error from road
+    NEGATIVE_ERROR = "neg_error"
     DISTANCE = "distance"  # reward is proportional to distance traveled
     NEGATIVE_DISTANCE = "neg_distance"  # negative reward is inversely proportional to distance traveled (ie, longer distance is less negative reward)
     SPEED = "speed"  # reward is proportional to speed
@@ -91,6 +92,8 @@ class State(object):
 
         if self.reward_type == RewardTypes.ERROR:
             return  (self.e_max -1*abs(self.e))/self.e_max
+        elif self.reward_type == RewardTypes.ERROR:
+            return  -1*abs(self.e)/self.e_max
         elif self.reward_type == RewardTypes.DISTANCE:
             return self.s
         elif self.reward_type == RewardTypes.NEGATIVE_DISTANCE:
