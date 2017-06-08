@@ -73,9 +73,9 @@ class State(object):
         dictionary = {
                 v: i for i, v in zip(range(9), State.v)
             }
-        dictionary["remainder"] = len(v)
-        dictionary['wf'] = np.asarray([1,2] + len(State.v))
-        dictionary['wr'] = np.asarray([3,4] + len(State.v))
+        dictionary["remainder"] = len(State.v)
+        dictionary['wf'] = np.asarray([1,2]) + len(State.v)
+        dictionary['wr'] = np.asarray([3,4]) + len(State.v)
         return dictionary
 
     def kappa(self, s=None):
@@ -84,11 +84,14 @@ class State(object):
         return self.path.kappa(s)[0]
 
     def is_terminal(self):
-        return abs(self.e) > self.e_max or self.remainder() <= 1e-2 or min(self.wr) < -1
+        return self.crash() or self.remainder() <= 1e-2
+
+    def crash(self):
+        return abs(self.e) > self.e_max or min(self.wr) < -1
 
     def reward(self, t_step=1, previous_state=None, previous_action=None, max_path_length=1000):
 
-        if (abs(self.e) > self.e_max or min(self.wr) < -1) and self.negatively_reward_crash:
+        if self.crash() and self.negatively_reward_crash:
             return self.crash_cost
 
         if self.reward_type == RewardTypes.ERROR:

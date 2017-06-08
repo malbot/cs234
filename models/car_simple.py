@@ -140,7 +140,7 @@ class CarSimple():
         theta_b = np.arctan(self.d/(2*self.b))
         Fr = np.array([Fy_rl * np.cos(theta_b), Fy_rr * np.cos(theta_b)])
 
-        drdt = (np.sum(Ff*R_a) + np.sum(Fr*R_b))/self.Iz
+        drdt = (np.sum(Ff*R_a) - np.sum(Fr*R_b))/self.Iz
         dUydt = ( Fy_rl + Fy_rr + (Fy_fl + Fy_fr)*np.cos(delta))/self.m - state.r*state.Ux
         dUxdt = (Fy_rl + Fy_rr - (Fy_fl + Fy_fr)*np.sin(delta) + tr*self.Re)/self.m + state.r*state.Uy
 

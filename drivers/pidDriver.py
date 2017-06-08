@@ -9,12 +9,13 @@ from models.path import cospath
 
 
 class pidDriver(AbstractDriver):
-    def __init__(self, V, kp, x_la, car):
+    def __init__(self, V, kp, x_la, car, feed_back_only = False):
         super(AbstractDriver, self).__init__()
         self.V = V
         self.kp = kp
         self.x_la = x_la
         self.car = car
+        self.feed_back_only = True
 
     def get_action(self, state_batch):
         actions = []
@@ -24,12 +25,12 @@ class pidDriver(AbstractDriver):
             K = self.car.m * self.car.mdf / self.car.cy - self.car.m*(1-self.car.mdf)/self.car.cy
             beta = (self.car.b - (self.car.a*self.car.m*state.Ux**2)/(self.car.cy*self.car.l))*kappa
             delta_ff = self.car.l*kappa + K*state.Ux**2*kappa - self.kp*self.x_la*beta
-            delta = delta_fb + delta_ff
+            delta = delta_fb if self.feed_back_only else delta_fb + delta_ff
             delta = delta if abs(delta) < self.car.max_del else np.sign(delta)*self.car.max_del
 
             torque = 1*(self.V - state.Ux)
             torque = torque if abs(torque) < self.car.max_t else np.sign(torque)*self.car.max_t
-            actions.append(Action(delta=delta_fb, tr=torque, tf=torque))
+            actions.append(Action(delta=delta, tr=torque, tf=torque))
         return actions
 
     def get_noisy_action(self, state_batch):

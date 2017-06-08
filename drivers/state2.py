@@ -5,15 +5,15 @@ from drivers.state import State, RewardTypes
 
 class StateSimple(State):
 
-    reward_type = RewardTypes.NEGATIVE_ERROR
+    reward_type = RewardTypes.SPEED
     negatively_reward_crash = True
     crash_cost = -1
     reward_increments = 5
-    v = ['Ux', 'Uy', 'r', 'e', 'delta_psi', 's']
+    v = ['Ux', 'Uy', 'r', 'e', 'delta_psi']
 
     @staticmethod
     def size():
-        return len(StateSimple.v)  # 12 variables, with wf and wr size 2, and path remaining, excluding kappa
+        return len(StateSimple.v)+1  # 6 variables, with wf and wr size 2, and path remaining, excluding kappa
 
     def as_array(self, kappa_length, kappa_step_size=1):
         """
@@ -39,8 +39,8 @@ class StateSimple(State):
         return dictionary
 
 
-    def is_terminal(self):
-        return abs(self.e) > self.e_max or self.remainder() <= 1e-2
+    def crash(self):
+        return abs(self.e) > self.e_max
 
     def __str__(self):
         return "[r={r:.4g} ({x:.4g}, {y:.4g}, {o:.4g})]: Ux = {ux:.4g}, Uy = {uy:.4g}, e = {e:.4g}, s = {s:.4g}".format(

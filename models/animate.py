@@ -68,14 +68,21 @@ class CarAnimation(object):
         # time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
         # energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
         self.data_text = ax.text(0.0, 0.0, '', transform=ax.transAxes)
-        ani = FuncAnimation(fig=fig, func=self, frames=iter(range(0, len(front_wheels.x), 20)), interval=interval)
+        ani = FuncAnimation(
+            fig=fig,
+            func=self,
+            frames=iter(range(0, len(front_wheels.x), 100)),
+            interval=interval,
+            save_count=int(len(front_wheels.x)/100)
+        )
 
         if save_to is not None:
             mpl.verbose.set_level("helpful")
             ani.save(filename="{file}.mp4".format(file=save_to), writer="avconv", codec="libx264", fps=int(1/(t_step*20)))
+            plt.close()
         else:
             plt.show()
-        plt.close()
+
 
 if __name__ == "__main__":
     time_step = .1
