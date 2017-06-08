@@ -3,6 +3,7 @@ from tensorflow.contrib import layers, rnn
 import numpy as np
 import os
 import random
+import time
 
 from drivers.state2 import StateSimple as State
 from drivers.action import Action
@@ -10,6 +11,7 @@ from models.car_simple import CarSimple
 from models.path import circle_path, cospath, cospath_decay, strait_path
 from drivers.pidDriver import pidDriver
 from bar import Progbar
+from models.animate import CarAnimation
 
 class MultiStateDriver(object):
     kappa_length = 40
@@ -672,8 +674,8 @@ class MultiStateDriver(object):
         ]
         while not state.is_terminal() and t < 1.5 * path.length() * self.initial_velocity:
             t += self.t_step
-            action = self.get_action(session, history)
-            q_values.append(self.get_q(session=session, state=history, action=action))
+            action = self.get_action(session, np.expand_dims(history, axis=0))
+            q_values.append(self.get_q(session=session, state=np.expand_dims(history, axis=0), action=action))
             a = np.reshape(action, newshape=[np.size(action, 1)])
             action = Action.get_action(a, max_delta=car.max_del, max_t=car.max_t)
 
@@ -684,7 +686,7 @@ class MultiStateDriver(object):
             rewards.append(state_p.reward(t_step=self.t_step, previous_state=state, previous_action=action))
 
             state = state_p
-            history.append(state_p)
+            history.append(state_p.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size))
             del history[0]
 
             ux.append(state.Ux)
