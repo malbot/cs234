@@ -4,6 +4,7 @@ import numpy as np
 import os
 import random
 import time
+import sys
 
 from drivers.state2 import StateSimple as State
 from drivers.action import Action
@@ -233,8 +234,14 @@ class MultiStateDriver(object):
             axis=2
         )
         with tf.variable_scope(scope, reuse=reuse):
-            history_cell = rnn.BasicLSTMCell(self.rnn_state_size, reuse=reuse)
-            prediction_cell = rnn.BasicLSTMCell(self.rnn_state_size*2, reuse=reuse)
+            if sys.version_info[0] == 2:
+                history_cell = rnn.BasicLSTMCell(self.rnn_state_size)
+                prediction_cell = rnn.BasicLSTMCell(self.rnn_state_size*2)
+            elif sys.version_info[0] == 3:
+                history_cell = rnn.BasicLSTMCell(self.rnn_state_size, reuse=reuse)
+                prediction_cell = rnn.BasicLSTMCell(self.rnn_state_size*2, reuse=reuse)
+            else:
+                raise EnvironmentError("WTF python version is this?")
             inputs = [state[:, i, :] for i in range(self.history)]
             _, history_lstm_states = rnn.static_rnn(
                 cell=history_cell,
