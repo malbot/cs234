@@ -666,12 +666,14 @@ class MultiStateDriver(object):
         states = []
         q_values = []
         rewards = []
+        history = [
+            state.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)
+            for _ in range(self.history)
+        ]
         while not state.is_terminal() and t < 1.5 * path.length() * self.initial_velocity:
             t += self.t_step
-            s = np.array(state.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size))
-            s = np.reshape(s, newshape=[1, np.alen(s)])
-            action = self.get_action(session, s)
-            q_values.append(self.get_q(session=session, state=s, action=action))
+            action = self.get_action(session, history)
+            q_values.append(self.get_q(session=session, state=history, action=action))
             a = np.reshape(action, newshape=[np.size(action, 1)])
             action = Action.get_action(a, max_delta=car.max_del, max_t=car.max_t)
 
@@ -680,7 +682,11 @@ class MultiStateDriver(object):
 
             state_p, _, _, _ = car(state=state, action=action, time=self.t_step)
             rewards.append(state_p.reward(t_step=self.t_step, previous_state=state, previous_action=action))
+
             state = state_p
+            history.append(state_p)
+            del history[0]
+
             ux.append(state.Ux)
             bar.update(int(state.s), exact=[("e", state.e), ("Ux", state.Ux), ("s", state.s)])
         states.append(state)
