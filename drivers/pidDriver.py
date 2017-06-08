@@ -3,7 +3,7 @@ import numpy as np
 from drivers.action import Action
 from drivers.abstract_driver import AbstractDriver
 from drivers.state import State
-from models.car2 import CarModel
+from models.car_simple import CarSimple
 from models.gps import GPS
 from models.path import cospath
 
@@ -27,9 +27,9 @@ class pidDriver(AbstractDriver):
             delta = delta_fb + delta_ff
             delta = delta if abs(delta) < self.car.max_del else np.sign(delta)*self.car.max_del
 
-            torque = 100*(self.V - state.Ux)
+            torque = 1*(self.V - state.Ux)
             torque = torque if abs(torque) < self.car.max_t else np.sign(torque)*self.car.max_t
-            actions.append(Action(delta=delta, tr=torque, tf=torque))
+            actions.append(Action(delta=delta_fb, tr=torque, tf=torque))
         return actions
 
     def get_noisy_action(self, state_batch):
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     t_step = .01
     max_i = 1000
     path = cospath(length=10, y_scale=10)
-    model = CarModel()
+    model = CarSimple()
     x = []
     y = []
     gps = GPS(car=model, o=np.pi/6)

@@ -1,14 +1,7 @@
 import numpy as np
 
 from models.path import cospath_decay
-from drivers.state import State
-
-class RewardTypes():
-    ERROR = "error"  # reward is inversely proportional to error from road
-    NEGATIVE_ERROR = "neg_error"
-    DISTANCE = "distance"  # reward is proportional to distance traveled
-    NEGATIVE_DISTANCE = "neg_distance"  # negative reward is inversely proportional to distance traveled (ie, longer distance is less negative reward)
-    SPEED = "speed"  # reward is proportional to speed
+from drivers.state import State, RewardTypes
 
 class StateSimple(State):
 
@@ -16,10 +9,11 @@ class StateSimple(State):
     negatively_reward_crash = True
     crash_cost = -1
     reward_increments = 5
+    v = ['Ux', 'Uy', 'r', 'e', 'delta_psi', 's']
 
     @staticmethod
     def size():
-        return 10  # 12 variables, with wf and wr size 2, and path remaining, excluding kappa
+        return len(StateSimple.v)  # 12 variables, with wf and wr size 2, and path remaining, excluding kappa
 
     def as_array(self, kappa_length, kappa_step_size=1):
         """
@@ -30,7 +24,7 @@ class StateSimple(State):
         """
         return np.asarray(
             [
-                getattr(self, attr) for attr in ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's']
+                getattr(self, attr) for attr in StateSimple.v
             ]
             + [self.remainder()]
             + self.kappa(s=[self.s + i*kappa_step_size for i in range(kappa_length)]).tolist()
@@ -39,10 +33,14 @@ class StateSimple(State):
     @staticmethod
     def array_value_mapping():
         dictionary = {
-                v: i for i, v in zip(range(9), ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's'])
+                v: i for i, v in zip(range(9), StateSimple.v)
             }
-        dictionary["remainder"] = 9
+        dictionary["remainder"] = len(StateSimple.v)
         return dictionary
+
+
+    def is_terminal(self):
+        return abs(self.e) > self.e_max or self.remainder() <= 1e-2
 
     def __str__(self):
         return "[r={r:.4g} ({x:.4g}, {y:.4g}, {o:.4g})]: Ux = {ux:.4g}, Uy = {uy:.4g}, e = {e:.4g}, s = {s:.4g}".format(

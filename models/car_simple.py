@@ -5,16 +5,17 @@ import numpy as np
 from drivers.action import Action
 from drivers.state2 import StateSimple
 from models.path import strait_path
-from models.tiremodel import TireModel
+from models.simple_tire_model import SimpleTireModel
+from models.car2 import CarModel
 
 PointSet = namedtuple('PointSet', ['x', 'y'])
 
-class CarModel():
+class CarSimple():
     """
     vehicle model that calculates delta_psi, e, s directly from its position and the location of the path
     """
 
-    def __init__(self, mass=1650, tyre_model=TireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re=0.34, Jw=1.2, make_record=True, max_t=500, max_del=np.pi/3):
+    def __init__(self, mass=1650, tyre_model=SimpleTireModel, cx=200000, cy=100000, mdf=.57, length=2.5, Iz=2235, width=1.55, muf_p=1.1, muf_s=0.9, mur_p=1.2, mur_s=1.0, g=9.81, Re=0.34, Jw=1.2, make_record=True, max_t=500, max_del=np.pi/3):
         """
         Initializes the car model
         :param mass: mass of car
@@ -72,9 +73,7 @@ class CarModel():
         :param r: rate of rotation
         :return:
         """
-        wf = np.ones(shape=2)*Ux/self.Re if wf is None else wf
-        wr = np.ones(shape=2)*Ux/self.Re if wr is None else wr
-        return StatSimplee(Ux=Ux, Uy=Uy, r=r, wf=0, wr=0, path=path, wx=x, wy=y, wo=o, delta_psi=delta_psi, e=e, s=s)
+        return StateSimple(Ux=Ux, Uy=Uy, r=r, wf=0, wr=0, path=path, wx=x, wy=y, wo=o, delta_psi=delta_psi, e=e, s=s)
 
     def start_state(self, Ux, Uy, r, path=None):
         """
@@ -90,7 +89,7 @@ class CarModel():
             o = np.arctan2(ny-sy, nx-sx)
         else:
             o = 0
-        return State(Ux=Ux, Uy=Uy, r=r, wf=0, wr=0, path=path, wx=path.x[0], wy=path.y[0], wo=o, delta_psi=0, e=0, s=0)
+        return StateSimple(Ux=Ux, Uy=Uy, r=r, wf=None, wr=None, path=path, wx=path.x[0], wy=path.y[0], wo=o, delta_psi=0, e=0, s=0)
 
     def __call__(self, state, action, time, as_state=True):
         """
@@ -125,44 +124,25 @@ class CarModel():
             state.Uy + self.a*state.r
         ])
 
-        alphar = np.arctan2(Uyr, Uxr)
-        alphaf = np.arctan2(Uyf, Uxf) - delta
+        alpha_r = np.arctan2(Uyr, Uxr)
+        alpha_f = np.arctan2(Uyf, Uxf) - delta
 
-        Vr = Uxr
-        Vf = Uxf*np.cos(delta) + Uyf*np.sin(delta)
-        sigmar = np.nan_to_num(np.divide(self.Re*state.wr - Vr, Vr))
-        sigmaf = np.nan_to_num(np.divide(self.Re*state.wf - Vf, Vf))
-
-        F_rl = self.tyre_model["rear"](Fz=self.fz_rear, alpha=alphar[0], sigma=sigmar[0], as_dict=True)
-        F_rr = self.tyre_model["rear"](Fz=self.fz_rear, alpha=alphar[1], sigma=sigmar[1], as_dict=True)
-        F_fl = self.tyre_model["front"](Fz=self.fz_front, alpha=alphaf[0], sigma=sigmaf[0], as_dict=True)
-        F_fr = self.tyre_model["front"](Fz=self.fz_front, alpha=alphaf[1], sigma=sigmaf[1], as_dict=True)
+        Fy_rl = self.tyre_model["rear"](Fz=self.fz_rear, alpha=alpha_r[0])
+        Fy_rr = self.tyre_model["rear"](Fz=self.fz_rear, alpha=alpha_r[1])
+        Fy_fl = self.tyre_model["front"](Fz=self.fz_front, alpha=alpha_f[0])
+        Fy_fr = self.tyre_model["front"](Fz=self.fz_front, alpha=alpha_f[1])
 
         R_a = np.sqrt(self.a**2 + self.d**2/4)
         theta_a = np.arctan(self.d/(self.a*2))
-        Ff = np.array([
-            -F_fl['Fx']*np.sin(theta_a - delta) + F_fl['Fy']*np.cos(theta_a - delta),
-            F_fr['Fx'] * np.sin(theta_a + delta) + F_fr['Fy']*np.cos(theta_a + delta)
-        ])
+        Ff = np.array([Fy_fl*np.cos(theta_a - delta), Fy_fr*np.cos(theta_a + delta)])
 
         R_b = np.sqrt(self.b**2 + self.d**2/4)
         theta_b = np.arctan(self.d/(2*self.b))
-        Fr = np.array([
-            -F_rl['Fx'] * np.sin(theta_b) - F_rl['Fy'] * np.cos(theta_b),
-            F_rr['Fx'] * np.sin(theta_b) - F_rr['Fy'] * np.cos(theta_b)
-        ])
+        Fr = np.array([Fy_rl * np.cos(theta_b), Fy_rr * np.cos(theta_b)])
 
         drdt = (np.sum(Ff*R_a) + np.sum(Fr*R_b))/self.Iz
-        dUydt = (
-                    F_rl['Fy'] + F_rr['Fy']
-                    + (F_fl['Fy'] + F_fr['Fy'])*np.cos(delta)
-                    + (F_fl['Fx'] + F_fr['Fx'])*np.sin(delta)
-                )/self.m - state.r*state.Ux
-        dUxdt = (
-                    F_rl['Fx'] + F_rr['Fx']
-                    + (F_fl['Fx'] + F_fr['Fx'])*np.cos(delta)
-                    - (F_fl['Fy'] + F_fr['Fy'])*np.sin(delta)
-                )/self.m + state.r*state.Uy
+        dUydt = ( Fy_rl + Fy_rr + (Fy_fl + Fy_fr)*np.cos(delta))/self.m - state.r*state.Ux
+        dUxdt = (Fy_rl + Fy_rr - (Fy_fl + Fy_fr)*np.sin(delta) + tr*self.Re)/self.m + state.r*state.Uy
 
         dx = state.Ux * time
         dy = state.Uy * time
@@ -183,12 +163,12 @@ class CarModel():
         e, s, road_orientation = state.path.interpolate(Wx, Wy, old_s=None)
         delta_psi = Wo - road_orientation
 
-        state = State(
+        state = StateSimple(
                 Ux=Ux,
                 Uy=Uy,
                 r=r,
-                wf=wf,
-                wr=wr,
+                wf=None,
+                wr=None,
                 path=state.path,
                 wo=Wo,
                 wx=Wx,
@@ -203,16 +183,12 @@ class CarModel():
                     "u_yr": Uyr,
                     "u_xf": Uxf,
                     "u_yf": Uyf,
-                    "alphar": alphar,
-                    "alphaf": alphaf,
-                    "sigmaf": sigmaf,
-                    "sigmar": sigmar,
-                    "Vf": Vf,
-                    "Vr": Vr,
-                    "f_rl": F_rl,
-                    "f_rr": F_rr,
-                    "f_fr": F_fr,
-                    "f_fl": F_fl,
+                    "alphar": alpha_r,
+                    "alphaf": alpha_f,
+                    "f_rl": Fy_rl,
+                    "f_rr": Fy_rr,
+                    "f_fr": Fy_fr,
+                    "f_fl": Fy_fl,
                     "Ra": R_a,
                     "theta_a": theta_a,
                     "ff": Ff,
@@ -221,9 +197,6 @@ class CarModel():
                     "fr": Fr,
                     "del": delta,
                     "tr_r": tr,
-                    "tr_f": tf,
-                    "w_r": wr,
-                    "w_f": wf
                 }
         )
 
@@ -241,7 +214,7 @@ class CarModel():
 
 def car_model_test():
     t = 1.0000e-03
-    model = CarModel()
+    model = CarSimple()
     actions = [
         Action(delta=0, tr=0, tf=0),
         Action(delta=0.0408, tf=28.6115, tr=28.6115),

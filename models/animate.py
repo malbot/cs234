@@ -67,7 +67,7 @@ class CarAnimation(object):
 
         # time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
         # energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
-        self.data_text = ax.text(1.01, 0.0, '', transform=ax.transAxes)
+        self.data_text = ax.text(0.0, 0.0, '', transform=ax.transAxes)
         ani = FuncAnimation(fig=fig, func=self, frames=iter(range(0, len(front_wheels.x), 20)), interval=interval)
 
         if save_to is not None:

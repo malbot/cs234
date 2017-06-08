@@ -2,7 +2,7 @@ import numpy as np
 
 from models.path import cospath_decay
 
-class RewardTypes():
+class RewardTypes(object):
     ERROR = "error"  # reward is inversely proportional to error from road
     NEGATIVE_ERROR = "neg_error"
     DISTANCE = "distance"  # reward is proportional to distance traveled
@@ -15,6 +15,7 @@ class State(object):
     negatively_reward_crash = True
     crash_cost = -1
     reward_increments = 5
+    v = ['Ux', 'Uy', 'r', 'e', 'delta_psi', 's']
 
     def __init__(self, Ux, Uy, r, wf, wr, path, wx, wy, wo, delta_psi, e, s, e_max=10, data=None, t=0):
         """
@@ -59,7 +60,7 @@ class State(object):
         """
         return np.asarray(
             [
-                getattr(self, attr) for attr in ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's']
+                getattr(self, attr) for attr in State.v
             ]
             + [self.remainder()]
             + self.wf.tolist()
@@ -70,11 +71,11 @@ class State(object):
     @staticmethod
     def array_value_mapping():
         dictionary = {
-                v: i for i, v in zip(range(9), ['Ux', 'Uy', 'r', 'e', 'delta_psi', 'wx', 'wy', 'wo', 's'])
+                v: i for i, v in zip(range(9), State.v)
             }
-        dictionary["remainder"] = 9
-        dictionary['wf'] = np.asarray([10,11])
-        dictionary['wr'] = np.asarray([12,13])
+        dictionary["remainder"] = len(v)
+        dictionary['wf'] = np.asarray([1,2] + len(State.v))
+        dictionary['wr'] = np.asarray([3,4] + len(State.v))
         return dictionary
 
     def kappa(self, s=None):

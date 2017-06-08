@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from bar import Progbar
 from drivers.pidDriver import pidDriver
 from models.animate import CarAnimation
-from models.car2 import CarModel
+from models.car_simple import CarSimple
 from models.path import circle_path, cospath_decay, strait_path
 
 t_step = .001
@@ -16,9 +16,9 @@ t_step = .001
 # path = strait_path(200)
 path = cospath_decay(length=100, y_scale=-10, frequency=1, decay_amplitude=0, decay_frequency=1.0e-4)
 # path = circle_path(radius=100, interval=.1, revolutions=.8, decay=0)
-model = CarModel()
+model = CarSimple()
 state = model.start_state(Ux=9, Uy=0, r=0, path=path)
-driver = pidDriver(V=15, kp=3 * np.pi / 180, x_la=15, car=model)
+driver = pidDriver(V=15, kp=1 * np.pi / 180, x_la=15, car=model)
 bar = Progbar(target=int(path.length())+1)
 data = []
 t = 0

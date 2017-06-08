@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from bar import Progbar
 from drivers.pidDriver import pidDriver
 from models.animate import CarAnimation
-from models.car2 import CarModel
+from models.car2 import SimpleCar
 from models.path import Path
 
 with open("spinout_road.csv", 'r') as f:
@@ -23,7 +23,7 @@ with open("data.csv", "r") as f:
 # path = circle_path(radius=40, interval=.1, revolutions=1.5, decay=.6)
 t_step = .001
 v = 30
-model = CarModel(muf_p=1.2, muf_s=1.0, mur_p=1.1, mur_s=0.9)
+model = SimpleCar(muf_p=1.2, muf_s=1.0, mur_p=1.1, mur_s=0.9)
 state = model.start_state(Ux=v, Uy=0, r=0, path=path)
 state.e_max = 10
 driver = pidDriver(V=v, kp=3 * np.pi / 180, x_la=15, car=model)
