@@ -242,6 +242,7 @@ class MultiStateDriver(object):
                 prediction_cell = rnn.BasicLSTMCell(self.rnn_state_size*2, reuse=reuse)
             else:
                 raise EnvironmentError("WTF python version is this?")
+
             inputs = [state[:, i, :] for i in range(self.history)]
             _, history_lstm_states = rnn.static_rnn(
                 cell=history_cell,

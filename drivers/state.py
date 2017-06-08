@@ -103,7 +103,10 @@ class State(object):
         elif self.reward_type == RewardTypes.NEGATIVE_DISTANCE:
             return self.remainder()*-1
         elif self.reward_type == RewardTypes.SPEED:
-            return (self.s - previous_state.s)/t_step
+            if previous_state is not None:
+                return (self.s - previous_state.s)/t_step
+            else:
+                return self.Ux
 
         raise ValueError("Reward type not recognized: {0}".format(self.reward_type))
         # if abs(self.e) > self.e_max or min(self.wr) < -1:
