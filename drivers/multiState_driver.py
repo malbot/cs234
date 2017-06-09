@@ -528,6 +528,10 @@ class MultiStateDriver(object):
                 state.as_array(kappa_length=self.kappa_length, kappa_step_size=self.kappa_step_size)
                 for _ in range(self.history)
             ]
+            actor_loss = 0.0
+            actor_norm = 0.0
+            critic_loss = 0.0
+            critic_norm = 0.0
             c = 0
             while not state.is_terminal():
                 a = self.get_noisy_action(session, np.expand_dims(history, axis=0))[0]
@@ -567,15 +571,15 @@ class MultiStateDriver(object):
                         actor_loss, actor_norm = self.train_actor(session=session, state=states)
                         self.update_targets(session=session)
 
-                        bar.update(current=bar_offset + state.s, exp_avg=[
-                            ("critic loss", critic_loss),
-                            ("critic norm", critic_norm),
-                            ("actor loss", actor_loss),
-                            ("actor norm", actor_norm)
-                        ])
-
                         if len(experience) < replay_buffer_size:
                             break
+
+                    bar.update(current=bar_offset + state.s, exp_avg=[
+                        ("critic loss", critic_loss),
+                        ("critic norm", critic_norm),
+                        ("actor loss", actor_loss),
+                        ("actor norm", actor_norm)
+                    ])
                 del history[0]
             bar_offset = state.path.length() + bar_offset
         bar.update(
