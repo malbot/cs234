@@ -574,14 +574,14 @@ class MultiStateDriver(object):
                         if len(experience) < replay_buffer_size:
                             break
 
-                    bar.update(current=bar_offset + state.s, exp_avg=[
-                        ("critic loss", critic_loss),
-                        ("critic norm", critic_norm),
-                        ("actor loss", actor_loss),
-                        ("actor norm", actor_norm)
-                    ])
                 del history[0]
-            bar_offset = state.path.length() + bar_offset
+            bar_offset += state.path.length()
+            bar.update(current=bar_offset, exp_avg=[
+                ("critic loss", critic_loss),
+                ("critic norm", critic_norm),
+                ("actor loss", actor_loss),
+                ("actor norm", actor_norm)
+            ])
         bar.update(
             current=bar.target,
             exp_avg=[
