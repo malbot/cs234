@@ -7,7 +7,7 @@ class StateSimple(State):
 
     reward_type = RewardTypes.SPEED
     negatively_reward_crash = True
-    crash_cost = -1
+    crash_cost = -100
     reward_increments = 5
     v = ['Ux', 'Uy', 'r', 'e', 'delta_psi']
 
